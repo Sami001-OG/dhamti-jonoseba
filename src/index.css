@@ -13,15 +13,35 @@
     font-family: 'Hind Siliguri', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
+    letter-spacing: 0;
+    line-height: 1.65;
   }
   
-  .font-heading {
+  /* Authentic Editorial Bengali Typography */
+  .font-serif-bangla {
+    font-family: 'Noto Serif Bengali', Georgia, Cambria, serif;
+    letter-spacing: 0 !important;
+  }
+
+  .font-sans-bangla {
     font-family: 'Hind Siliguri', 'Plus Jakarta Sans', sans-serif;
+    letter-spacing: 0 !important;
+  }
+
+  .font-heading {
+    font-family: 'Noto Serif Bengali', 'Hind Siliguri', serif;
+    letter-spacing: 0 !important;
   }
 
   .font-mono-num {
     font-family: 'JetBrains Mono', monospace;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Prevent letter-spacing distortion on Bengali conjuncts (যুক্তাক্ষর) */
+  :lang(bn), [lang="bn"], .bengali-text {
+    letter-spacing: normal !important;
+    word-spacing: 0.05em;
   }
 
   /* Custom subtle scrollbars for responsive lists */

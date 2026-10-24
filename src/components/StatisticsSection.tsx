@@ -44,10 +44,10 @@ export const StatisticsSection: React.FC<StatisticsSectionProps> = ({
           <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider block">
             {language === 'bn' ? 'স্বচ্ছ নাগরিক ডেটা' : 'Citizen Transparency'}
           </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight mt-1">
+          <h2 className="text-2xl sm:text-3xl font-bold text-neutral-900 mt-1 font-serif-bangla leading-[1.3]">
             {strings.statsHeading}
           </h2>
-          <p className="text-sm sm:text-base text-neutral-600 mt-2">
+          <p className="text-sm sm:text-base text-neutral-600 mt-2 leading-relaxed">
             {strings.statsSubheading}
           </p>
         </div>

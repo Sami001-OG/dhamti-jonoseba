@@ -53,18 +53,27 @@ export const ProblemDetailModal: React.FC<ProblemDetailModalProps> = ({
       <div className="relative bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-2xl border border-neutral-200 overflow-hidden my-auto max-h-[92vh] flex flex-col">
         
         {/* Header */}
-        <div className="px-5 sm:px-6 py-4 sm:py-5 bg-neutral-900 text-white flex items-center justify-between shrink-0">
+        <div className="px-5 sm:px-6 py-4 sm:py-5 bg-neutral-950 text-white flex items-center justify-between shrink-0 border-b border-neutral-800">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold text-emerald-400">
+            <div className="flex items-center gap-2 text-xs">
+              <span className={`font-bold flex items-center gap-1.5 ${
+                problem.submissionType === 'advice' ? 'text-indigo-300' : 'text-emerald-300'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${
+                  problem.submissionType === 'advice' ? 'bg-indigo-400' : 'bg-emerald-400'
+                }`} />
+                <span>{problem.submissionType === 'advice' ? (language === 'bn' ? 'উপদেশ ও পরামর্শ' : 'Advice') : (language === 'bn' ? 'অভিযোগ' : 'Complaint')}</span>
+              </span>
+              <span className="text-neutral-500">·</span>
+              <span className="font-mono-num font-semibold text-emerald-400">
                 {problem.trackingCode}
               </span>
-              <span className="text-xs text-neutral-400">·</span>
-              <span className="text-xs text-neutral-300">
+              <span className="text-neutral-500">·</span>
+              <span className="text-neutral-300">
                 {problem.urgency === 'critical' ? (language === 'bn' ? 'জরুরি' : 'Critical') : (language === 'bn' ? 'স্বাভাবিক' : 'Normal')}
               </span>
             </div>
-            <h3 className="text-base sm:text-lg font-bold text-white mt-1">
+            <h3 className="text-base sm:text-lg font-bold text-white mt-1.5 font-serif-bangla leading-[1.4]">
               {problem.title}
             </h3>
           </div>

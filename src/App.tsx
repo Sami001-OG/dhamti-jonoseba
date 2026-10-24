@@ -1,27 +1,26 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User } from 'firebase/auth';
-import { Language, ProblemReport, AreaStat, CategoryStat, ProblemStatus, LeaderProfile } from './types';
-import { INITIAL_AREAS, CATEGORIES, INITIAL_PROBLEMS, DEFAULT_PROFILE } from './data/mockData';
-import { initAuth } from './services/auth';
-import { getStoredSpreadsheetId, appendProblemToSheet } from './services/sheets';
+import { Language, ProblemReport, AreaStat, CategoryStat, ProblemStatus, LeaderProfile, ManifestoItem } from './types';
+import { INITIAL_AREAS, CATEGORIES, INITIAL_PROBLEMS, DEFAULT_PROFILE, LEADER_PERMANENT_PHOTO_URL } from './data/mockData';
+import { INITIAL_MANIFESTO_ITEMS } from './data/manifestoData';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
+import { ManifestoSection } from './components/ManifestoSection';
 import { StatisticsSection } from './components/StatisticsSection';
 import { ProblemFeedSection } from './components/ProblemFeedSection';
 import { SubmitProblemModal } from './components/SubmitProblemModal';
 import { TrackProblemModal } from './components/TrackProblemModal';
 import { ProblemDetailModal } from './components/ProblemDetailModal';
 import { AdminSectionModal } from './components/AdminSectionModal';
-import { GoogleSheetsModal } from './components/GoogleSheetsModal';
 import { Footer } from './components/Footer';
 
 const STORAGE_KEY_PROBLEMS = 'dhamti_real_problems_v1';
 const STORAGE_KEY_PROFILE = 'dhamti_leader_profile_v1';
+const STORAGE_KEY_MANIFESTO = 'dhamti_electoral_manifesto_v1';
 
 export default function App() {
   const [language, setLanguage] = useState<Language>('bn');
 
-  // Load real problems from local storage or empty array (Zero Mock Data!)
+  // Load real problems & advice from local storage (Zero Mock Data!)
   const [problems, setProblems] = useState<ProblemReport[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_PROBLEMS);
@@ -31,15 +30,23 @@ export default function App() {
     } catch {
       // ignore
     }
-    return INITIAL_PROBLEMS; // []
+    return INITIAL_PROBLEMS;
   });
 
-  // Persistent Leader Profile & Private Slogan/Contact Data
+  // Persistent Leader Profile with Hardcoded Permanent Portrait
   const [leaderProfile, setLeaderProfile] = useState<LeaderProfile>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_PROFILE);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        const phone = (!parsed.phone || parsed.phone.includes('1700-000000')) ? DEFAULT_PROFILE.phone : parsed.phone;
+        const email = (!parsed.email || parsed.email.includes('seba@dhamti.org')) ? DEFAULT_PROFILE.email : parsed.email;
+        return {
+          ...parsed,
+          phone,
+          email,
+          profileImage: LEADER_PERMANENT_PHOTO_URL,
+        };
       }
     } catch {
       // ignore
@@ -47,38 +54,26 @@ export default function App() {
     return DEFAULT_PROFILE;
   });
 
-  const [selectedWard, setSelectedWard] = useState<string>('');
+  // Persistent Electoral Manifesto (updated directly by admin)
+  const [manifestoItems, setManifestoItems] = useState<ManifestoItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_MANIFESTO);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_MANIFESTO_ITEMS;
+  });
 
-  // Google Sheets state
-  const [authUser, setAuthUser] = useState<User | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [spreadsheetId, setSpreadsheetId] = useState<string | null>(getStoredSpreadsheetId());
-  const [isSheetsModalOpen, setIsSheetsModalOpen] = useState(false);
+  const [selectedWard, setSelectedWard] = useState<string>('');
 
   // Modals state
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [activeDetailProblem, setActiveDetailProblem] = useState<ProblemReport | null>(null);
-
-  // Initialize Auth state
-  useEffect(() => {
-    const unsubscribe = initAuth(
-      (user, token) => {
-        setAuthUser(user);
-        setAccessToken(token);
-      },
-      () => {
-        setAuthUser(null);
-        setAccessToken(null);
-      }
-    );
-    return () => {
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
-    };
-  }, []);
 
   // Sync real problems to localStorage
   useEffect(() => {
@@ -98,7 +93,16 @@ export default function App() {
     }
   }, [leaderProfile]);
 
-  // Compute 100% REAL statistics strictly from actual complaints (Zero Mock Numbers!)
+  // Sync manifesto to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_MANIFESTO, JSON.stringify(manifestoItems));
+    } catch {
+      // storage unavailable
+    }
+  }, [manifestoItems]);
+
+  // Real statistics strictly from actual complaints & advice
   const totalSubmissions = problems.length;
   const totalResolved = problems.filter((p) => p.status === 'resolved').length;
   const totalInProgress = problems.filter((p) => p.status === 'in_progress').length;
@@ -124,21 +128,12 @@ export default function App() {
     }));
   }, [problems]);
 
-  // Add new problem report
+  // Add new complaint or advice
   const handleAddNewProblem = (newProblem: ProblemReport) => {
     setProblems((prev) => [newProblem, ...prev]);
-
-    // Auto-append to Google Sheet if connected
-    if (accessToken && spreadsheetId) {
-      appendProblemToSheet(accessToken, spreadsheetId, newProblem).then((success) => {
-        if (success) {
-          console.log('Appended grievance to Google Sheet successfully');
-        }
-      });
-    }
   };
 
-  // Upvote problem
+  // Upvote problem / advice
   const handleUpvote = (problemId: string) => {
     setProblems((prev) =>
       prev.map((item) => {
@@ -167,7 +162,7 @@ export default function App() {
     }
   };
 
-  // Delete problem from Admin
+  // Delete problem / advice from Admin
   const handleDeleteProblem = (problemId: string) => {
     setProblems((prev) => prev.filter((p) => p.id !== problemId));
     if (activeDetailProblem?.id === problemId) {
@@ -175,7 +170,7 @@ export default function App() {
     }
   };
 
-  // Update status from Admin (supports checking by union, ongoing, resolved/demolished)
+  // Update status from Admin
   const handleUpdateStatus = (
     problemId: string,
     newStatus: ProblemStatus,
@@ -209,6 +204,23 @@ export default function App() {
     );
   };
 
+  // Manifesto Admin handlers
+  const handleUpdateManifestoItem = (updated: ManifestoItem) => {
+    setManifestoItems((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+  };
+
+  const handleAddManifestoItem = (newItem: ManifestoItem) => {
+    setManifestoItems((prev) => [newItem, ...prev]);
+  };
+
+  const handleDeleteManifestoItem = (itemId: string) => {
+    setManifestoItems((prev) => prev.filter((m) => m.id !== itemId));
+  };
+
+  const handleResetManifesto = () => {
+    setManifestoItems(INITIAL_MANIFESTO_ITEMS);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50 text-neutral-900">
       {/* Top Bar Header (Clean Citizen View) */}
@@ -221,7 +233,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1">
-        {/* Hero Section matching sketch with Leader Profile and popping image */}
+        {/* Hero Section matching sketch with Leader Representation & Slogan Pedestal */}
         <HeroSection
           language={language}
           onOpenReportModal={() => setIsReportModalOpen(true)}
@@ -229,6 +241,12 @@ export default function App() {
           totalProblemsCount={totalSubmissions}
           resolvedProblemsCount={totalResolved}
           leaderProfile={leaderProfile}
+        />
+
+        {/* Dedicated Electoral Manifesto Section (Updated live by Admin) */}
+        <ManifestoSection
+          language={language}
+          manifestoItems={manifestoItems}
         />
 
         {/* Real Statistics Section */}
@@ -243,7 +261,7 @@ export default function App() {
           totalInProgress={totalInProgress}
         />
 
-        {/* Grievances Feed & Status Monitor */}
+        {/* Grievances & Advice Feed with Status Monitor */}
         <ProblemFeedSection
           language={language}
           problems={problems}
@@ -290,30 +308,17 @@ export default function App() {
         areas={computedAreas}
         categories={computedCategories}
         leaderProfile={leaderProfile}
+        manifestoItems={manifestoItems}
         onUpdateLeaderProfile={setLeaderProfile}
         onUpdateProblemStatus={handleUpdateStatus}
         onDeleteProblem={handleDeleteProblem}
-        onOpenGoogleSheets={() => setIsSheetsModalOpen(true)}
-        isSheetsConnected={Boolean(spreadsheetId && accessToken)}
+        onUpdateManifestoItem={handleUpdateManifestoItem}
+        onAddManifestoItem={handleAddManifestoItem}
+        onDeleteManifestoItem={handleDeleteManifestoItem}
+        onResetManifesto={handleResetManifesto}
       />
 
-      {/* Google Sheets Modal */}
-      <GoogleSheetsModal
-        isOpen={isSheetsModalOpen}
-        onClose={() => setIsSheetsModalOpen(false)}
-        language={language}
-        user={authUser}
-        accessToken={accessToken}
-        spreadsheetId={spreadsheetId}
-        onSpreadsheetConnected={(id) => setSpreadsheetId(id)}
-        onUserAuthChange={(u, token) => {
-          setAuthUser(u);
-          setAccessToken(token);
-        }}
-        problems={problems}
-      />
-
-      {/* Quiet Footer */}
+      {/* Quiet Footer with Admin access */}
       <Footer
         language={language}
         onOpenReportModal={() => setIsReportModalOpen(true)}

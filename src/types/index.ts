@@ -1,5 +1,7 @@
 export type Language = 'bn' | 'en';
 
+export type SubmissionType = 'complaint' | 'advice';
+
 export type ProblemStatus = 'pending' | 'reviewing' | 'in_progress' | 'resolved';
 
 export type UrgencyLevel = 'normal' | 'high' | 'critical';
@@ -15,7 +17,8 @@ export interface TimelineEvent {
 
 export interface ProblemReport {
   id: string;
-  trackingCode: string; // e.g. JNS-2026-1042
+  trackingCode: string; // e.g. JNS-2026-1042 or ADV-2026-1042
+  submissionType: SubmissionType; // 'complaint' = অভিযোগ, 'advice' = উপদেশ / পরামর্শ
   title: string;
   description: string;
   category: string;
@@ -64,4 +67,39 @@ export interface LeaderProfile {
   phone: string;
   email: string;
   officeAddress: string;
+}
+
+export type ManifestoStatus = 'planned' | 'in_progress' | 'completed';
+
+export type ManifestoCategory =
+  | 'roads_infrastructure'
+  | 'education_culture'
+  | 'healthcare_wellbeing'
+  | 'digital_youth'
+  | 'agriculture_drainage'
+  | 'social_safety'
+  | 'environment_clean';
+
+export interface ManifestoMilestone {
+  id: string;
+  textBn: string;
+  textEn: string;
+  isDone: boolean;
+}
+
+export interface ManifestoItem {
+  id: string;
+  titleBn: string;
+  titleEn: string;
+  category: ManifestoCategory;
+  summaryBn: string;
+  summaryEn: string;
+  descriptionBn: string;
+  descriptionEn: string;
+  progressPercentage: number; // 0 - 100
+  status: ManifestoStatus;
+  targetYear: string;
+  budgetOrScope: string;
+  milestones: ManifestoMilestone[];
+  lastUpdated: string;
 }

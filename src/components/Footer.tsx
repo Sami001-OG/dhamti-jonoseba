@@ -50,7 +50,7 @@ export const Footer: React.FC<FooterProps> = ({
                   onClick={onOpenReportModal}
                   className="hover:text-emerald-400 transition-colors cursor-pointer text-left"
                 >
-                  {language === 'bn' ? 'নতুন সমস্যা জানান' : 'Report a Problem'}
+                  {language === 'bn' ? 'অভিযোগ বা উপদেশ দিন' : 'Report Problem or Give Advice'}
                 </button>
               </li>
               <li>
@@ -59,8 +59,13 @@ export const Footer: React.FC<FooterProps> = ({
                   onClick={onOpenTrackModal}
                   className="hover:text-emerald-400 transition-colors cursor-pointer text-left"
                 >
-                  {language === 'bn' ? 'অভিযোগের অবস্থা জানুন' : 'Track Status by Code'}
+                  {language === 'bn' ? 'আবেদনের অবস্থা জানুন' : 'Track Status by Code'}
                 </button>
+              </li>
+              <li>
+                <a href="#manifesto" className="hover:text-emerald-400 transition-colors">
+                  {language === 'bn' ? 'নির্বাচনী ইশতেহার ও প্রতিশ্রুতি' : 'Electoral Manifesto Progress'}
+                </a>
               </li>
               <li>
                 <a href="#statistics" className="hover:text-emerald-400 transition-colors">
@@ -69,7 +74,7 @@ export const Footer: React.FC<FooterProps> = ({
               </li>
               <li>
                 <a href="#problem-feed" className="hover:text-emerald-400 transition-colors">
-                  {language === 'bn' ? 'সকল অভিযোগের তালিকা' : 'Public Grievance Feed'}
+                  {language === 'bn' ? 'সকল অভিযোগ ও উপদেশের তালিকা' : 'Citizen Grievance & Advice Feed'}
                 </a>
               </li>
             </ul>
@@ -80,18 +85,28 @@ export const Footer: React.FC<FooterProps> = ({
             <h4 className="text-white font-bold uppercase tracking-wider mb-3 text-xs">
               {language === 'bn' ? 'যোগাযোগ ও সহায়তা' : 'Helpline & Office'}
             </h4>
-            <ul className="space-y-2 text-neutral-400">
+            <ul className="space-y-2 text-neutral-400 text-xs">
               <li className="flex items-center gap-2">
                 <Phone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>{leaderProfile.phone}</span>
+                <a
+                  href={`tel:${leaderProfile.phone.replace(/\s+/g, '')}`}
+                  className="hover:text-emerald-400 transition-colors font-mono-num"
+                >
+                  {leaderProfile.phone}
+                </a>
               </li>
               <li className="flex items-center gap-2">
                 <Mail className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>{leaderProfile.email}</span>
+                <a
+                  href={`mailto:${leaderProfile.email}`}
+                  className="hover:text-emerald-400 transition-colors break-all"
+                >
+                  {leaderProfile.email}
+                </a>
               </li>
               <li className="flex items-start gap-2">
                 <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                <span>{leaderProfile.officeAddress}</span>
+                <span className="leading-snug">{leaderProfile.officeAddress}</span>
               </li>
             </ul>
           </div>

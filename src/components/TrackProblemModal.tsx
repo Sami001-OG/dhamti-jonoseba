@@ -91,7 +91,7 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
         <div className="px-5 sm:px-6 py-4 sm:py-5 bg-neutral-900 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <Search className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-base sm:text-lg font-bold">
+            <h3 className="text-base sm:text-lg font-bold font-serif-bangla leading-snug">
               {strings.trackModalTitle}
             </h3>
           </div>
@@ -127,8 +127,8 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
             <span>
               {language === 'bn'
-                ? 'অভিযোগ দাখিলের পর প্রাপ্ত ট্র্যাকিং কোড (উদাঃ JNS-2026-XXXX) দিয়ে অনুসন্ধান করুন।'
-                : 'Enter the tracking code (e.g. JNS-2026-XXXX) provided upon submission.'}
+                ? 'অভিযোগ বা উপদেশ দাখিলের পর প্রাপ্ত ট্র্যাকিং কোড (উদাঃ JNS-2026-XXXX বা ADV-2026-XXXX) দিয়ে অনুসন্ধান করুন।'
+                : 'Enter the tracking code (e.g. JNS-2026-XXXX or ADV-2026-XXXX) provided upon submission.'}
             </span>
           </div>
 
@@ -151,9 +151,16 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
               {/* Top Details */}
               <div className="flex items-start justify-between gap-3 pb-3 border-b border-neutral-200">
                 <div>
-                  <span className="text-xs font-mono font-bold text-emerald-800">
-                    {result.trackingCode}
-                  </span>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                      result.submissionType === 'advice' ? 'bg-indigo-600 text-white' : 'bg-emerald-700 text-white'
+                    }`}>
+                      {result.submissionType === 'advice' ? (language === 'bn' ? 'উপদেশ ও পরামর্শ' : 'Advice') : (language === 'bn' ? 'অভিযোগ' : 'Complaint')}
+                    </span>
+                    <span className="text-xs font-mono font-bold text-emerald-800">
+                      {result.trackingCode}
+                    </span>
+                  </div>
                   <h4 className="text-base font-bold text-neutral-900 mt-0.5">
                     {result.title}
                   </h4>

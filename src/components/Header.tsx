@@ -32,11 +32,14 @@ export const Header: React.FC<HeaderProps> = ({
           <a href="#hero-banner" className="hover:text-emerald-800 transition-colors whitespace-nowrap shrink-0">
             {language === 'bn' ? 'মূলবার্তা' : 'Overview'}
           </a>
+          <a href="#manifesto" className="hover:text-emerald-800 transition-colors whitespace-nowrap shrink-0 font-semibold text-emerald-900">
+            {language === 'bn' ? 'নির্বাচনী ইশতেহার' : 'Manifesto'}
+          </a>
           <a href="#statistics" className="hover:text-emerald-800 transition-colors whitespace-nowrap shrink-0">
             {language === 'bn' ? 'পরিসংখ্যান' : 'Statistics'}
           </a>
           <a href="#problem-feed" className="hover:text-emerald-800 transition-colors whitespace-nowrap shrink-0">
-            {language === 'bn' ? 'অভিযোগসমূহ' : 'Grievances'}
+            {language === 'bn' ? 'অভিযোগ ও উপদেশ' : 'Grievances & Advice'}
           </a>
           <button 
             type="button"
@@ -65,8 +68,8 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-1 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-white bg-emerald-700 hover:bg-emerald-800 active:scale-95 rounded-lg shadow-sm transition-all whitespace-nowrap shrink-0 cursor-pointer"
           >
             <PlusCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-            <span className="hidden min-[440px]:inline">{language === 'bn' ? 'সমস্যা জানান' : 'Report Problem'}</span>
-            <span className="min-[440px]:hidden">{language === 'bn' ? 'জানান' : 'Report'}</span>
+            <span className="hidden min-[440px]:inline">{language === 'bn' ? 'অভিযোগ / উপদেশ দিন' : 'Report / Advise'}</span>
+            <span className="min-[440px]:hidden">{language === 'bn' ? 'মতামত' : 'Submit'}</span>
           </button>
         </div>
       </div>
