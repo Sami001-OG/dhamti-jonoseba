@@ -252,8 +252,6 @@ export default function App() {
         <ManifestoSection
           language={language}
           manifestoItems={manifestoItems}
-          onDeleteManifestoItem={handleDeleteManifestoItem}
-          onDeleteCompletedManifestos={handleDeleteCompletedManifestos}
           onOpenAdmin={() => setIsAdminModalOpen(true)}
         />
 
