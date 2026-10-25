@@ -41,7 +41,8 @@ import {
   Sparkles,
   Target,
   Sliders,
-  ChevronRight
+  ChevronRight,
+  ChevronLeft
 } from 'lucide-react';
 import {
   verifyAdminPin,
@@ -121,6 +122,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
   // Active Tab: 'complaints' | 'manifesto' | 'profile_settings'
   const [activeTab, setActiveTab] = useState<'complaints' | 'manifesto' | 'profile_settings'>('complaints');
   const [mobileComplaintView, setMobileComplaintView] = useState<'list' | 'details'>('list');
+  const [mobileManifestoView, setMobileManifestoView] = useState<'list' | 'editor'>('list');
 
   // Complaints / Advice Management State
   const [submissionTypeFilter, setSubmissionTypeFilter] = useState<'all' | 'complaint' | 'advice'>('all');
@@ -458,6 +460,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
     onAddManifestoItem(newItem);
     setSelectedManifestoId(newItem.id);
     setIsAddingNewManifesto(false);
+    setMobileManifestoView('editor');
     // Reset form
     setNewPledgeTitleBn('');
     setNewPledgeTitleEn('');
@@ -499,31 +502,31 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
-      <div className="relative w-full max-w-5xl bg-white h-[92vh] rounded-3xl shadow-2xl border border-neutral-200 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-black/75 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4">
+      <div className="relative w-full sm:max-w-5xl bg-white h-full sm:h-[92vh] max-h-screen rounded-none sm:rounded-3xl shadow-2xl border-0 sm:border border-neutral-200 flex flex-col overflow-hidden">
         
         {/* Top Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-emerald-900 via-neutral-900 to-emerald-950 text-white flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-              <ShieldCheck className="w-6 h-6 text-emerald-300" />
+        <div className="px-3.5 py-3 sm:px-6 sm:py-4 bg-gradient-to-r from-emerald-900 via-neutral-900 to-emerald-950 text-white flex items-center justify-between shrink-0 gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-300" />
             </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold tracking-tight">
-                {language === 'bn' ? 'ধামতী ইউনিয়ন কেন্দ্রীয় অ্যাডমিন পোর্টাল' : 'Dhamti Central Admin Portal'}
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base md:text-lg font-bold tracking-tight truncate">
+                {language === 'bn' ? 'ধামতী ইউনিয়ন অ্যাডমিন পোর্টাল' : 'Dhamti Central Admin Portal'}
               </h3>
-              <p className="text-xs text-emerald-200">
-                {language === 'bn' ? 'অভিযোগ, উপদেশ, নির্বাচনী ইশতেহার ও সুশাসন নিয়ন্ত্রণ কেন্দ্র' : 'Grievance, Advice, Electoral Manifesto & Governance Control'}
+              <p className="text-[11px] sm:text-xs text-emerald-200 truncate hidden xs:block">
+                {language === 'bn' ? 'অভিযোগ, উপদেশ, নির্বাচনী ইশতেহার ও সুশাসন নিয়ন্ত্রণ' : 'Governance & Manifesto Control'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {isAuthenticated && (
               <button
                 type="button"
                 onClick={handleLogoutAdmin}
-                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-semibold rounded-lg text-white transition-colors cursor-pointer"
+                className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-white/10 hover:bg-white/20 text-[11px] sm:text-xs font-semibold rounded-lg text-white transition-colors cursor-pointer"
               >
                 {language === 'bn' ? 'লগআউট' : 'Logout'}
               </button>
@@ -531,9 +534,10 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+              title={language === 'bn' ? 'বন্ধ করুন' : 'Close'}
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </div>
@@ -617,22 +621,22 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
           <div className="flex-1 flex flex-col overflow-hidden">
             
             {/* Top Navigation Tabs */}
-            <div className="px-6 py-2.5 bg-neutral-100 border-b border-neutral-200 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
-              <div className="flex items-center gap-1.5 overflow-x-auto">
+            <div className="px-3 sm:px-6 py-2 sm:py-2.5 bg-neutral-100 border-b border-neutral-200 flex items-center justify-between gap-2 text-xs shrink-0 overflow-x-auto scrollbar-none">
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 overflow-x-auto scrollbar-none">
                 
                 {/* Tab 1: Grievance & Advice */}
                 <button
                   type="button"
                   onClick={() => setActiveTab('complaints')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap text-xs ${
                     activeTab === 'complaints'
                       ? 'bg-white text-emerald-800 shadow-xs border border-neutral-200'
                       : 'text-neutral-600 hover:text-neutral-900'
                   }`}
                 >
-                  <ListFilter className="w-4 h-4 text-emerald-700" />
-                  <span>{language === 'bn' ? 'অভিযোগ ও উপদেশ ব্যবস্থাপনা' : 'Complaints & Advice'}</span>
-                  <span className="ml-1 px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded-full font-mono text-[10px]">
+                  <ListFilter className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  <span>{language === 'bn' ? 'অভিযোগ ও উপদেশ' : 'Complaints & Advice'}</span>
+                  <span className="ml-0.5 px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded-full font-mono text-[10px]">
                     {problems.length}
                   </span>
                 </button>
@@ -641,15 +645,15 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab('manifesto')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap text-xs ${
                     activeTab === 'manifesto'
                       ? 'bg-white text-emerald-800 shadow-xs border border-neutral-200'
                       : 'text-neutral-600 hover:text-neutral-900'
                   }`}
                 >
-                  <Award className="w-4 h-4 text-emerald-700" />
-                  <span>{language === 'bn' ? 'নির্বাচনী ইশতেহার পরিচালনা' : 'Electoral Manifesto'}</span>
-                  <span className="ml-1 px-1.5 py-0.2 bg-amber-100 text-amber-900 rounded-full font-mono text-[10px]">
+                  <Award className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  <span>{language === 'bn' ? 'নির্বাচনী ইশতেহার' : 'Electoral Manifesto'}</span>
+                  <span className="ml-0.5 px-1.5 py-0.2 bg-amber-100 text-amber-900 rounded-full font-mono text-[10px]">
                     {manifestoItems.length}
                   </span>
                 </button>
@@ -658,14 +662,14 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTab('profile_settings')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap text-xs ${
                     activeTab === 'profile_settings'
                       ? 'bg-white text-emerald-800 shadow-xs border border-neutral-200'
                       : 'text-neutral-600 hover:text-neutral-900'
                   }`}
                 >
-                  <Settings className="w-4 h-4 text-emerald-700" />
-                  <span>{language === 'bn' ? 'স্লোগান ও নিরাপত্তা সেটিংস' : 'Slogans & PIN'}</span>
+                  <Settings className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  <span>{language === 'bn' ? 'প্রোফাইল ও পিন' : 'Profile & PIN'}</span>
                 </button>
               </div>
 
@@ -674,10 +678,12 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                 <button
                   type="button"
                   onClick={handleExportCSV}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold text-xs transition-colors cursor-pointer shadow-xs"
+                  className="flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold text-xs transition-colors cursor-pointer shadow-xs whitespace-nowrap"
+                  title="Export CSV"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>{language === 'bn' ? 'CSV / এক্সেল ডাউনলোড' : 'Export CSV'}</span>
+                  <span className="hidden sm:inline">{language === 'bn' ? 'CSV ডাউনলোড' : 'Export CSV'}</span>
+                  <span className="sm:hidden text-[11px]">CSV</span>
                 </button>
               </div>
             </div>
@@ -853,12 +859,27 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
 
                 {/* Right: Problem / Advice Details & Action Control */}
                 <div
-                  className={`w-full md:w-7/12 flex-1 flex flex-col bg-white overflow-y-auto p-4 sm:p-6 ${
+                  className={`w-full md:w-7/12 flex-1 flex flex-col bg-white overflow-y-auto p-3.5 sm:p-6 pb-12 sm:pb-6 ${
                     mobileComplaintView === 'details' ? 'flex' : 'hidden md:flex'
                   }`}
                 >
                   {currentProblem ? (
                     <div className="space-y-5">
+                      
+                      {/* Mobile Back Button to Return to List */}
+                      <div className="md:hidden flex items-center justify-between pb-2.5 border-b border-neutral-200">
+                        <button
+                          type="button"
+                          onClick={() => setMobileComplaintView('list')}
+                          className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-50 px-3 py-1.5 rounded-xl cursor-pointer"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                          <span>{language === 'bn' ? 'তালিকায় ফিরে যান' : 'Back to List'}</span>
+                        </button>
+                        <span className="font-mono font-bold text-neutral-600 text-xs">
+                          {currentProblem.trackingCode}
+                        </span>
+                      </div>
                       
                       {/* Top Action Bar */}
                       <div className="flex items-start justify-between gap-3 pb-3 border-b border-neutral-200">
@@ -1037,9 +1058,42 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
             {/* TAB 2: ELECTORAL MANIFESTO MANAGEMENT (NEW FULL FEATURE) */}
             {activeTab === 'manifesto' && (
               <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-neutral-50">
-                
+                {/* Mobile Sub-Navigation Bar for Manifesto */}
+                <div className="md:hidden flex items-center justify-between p-2 bg-neutral-100 border-b border-neutral-200 shrink-0">
+                  <div className="flex rounded-xl bg-neutral-200/70 p-1 w-full text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setMobileManifestoView('list')}
+                      className={`flex-1 py-1.5 rounded-lg text-center transition-all cursor-pointer ${
+                        mobileManifestoView === 'list'
+                          ? 'bg-white text-emerald-800 shadow-2xs'
+                          : 'text-neutral-600'
+                      }`}
+                    >
+                      {language === 'bn' ? `প্রতিশ্রুতি তালিকা (${manifestoItems.length})` : `Pledges (${manifestoItems.length})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMobileManifestoView('editor')}
+                      className={`flex-1 py-1.5 rounded-lg text-center transition-all cursor-pointer ${
+                        mobileManifestoView === 'editor'
+                          ? 'bg-white text-emerald-800 shadow-2xs'
+                          : 'text-neutral-600'
+                      }`}
+                    >
+                      {isAddingNewManifesto
+                        ? language === 'bn' ? '+ নতুন প্রতিশ্রুতি' : '+ Add New'
+                        : language === 'bn' ? 'অগ্রগতি ও বিবরণ' : 'Editor'}
+                    </button>
+                  </div>
+                </div>
+
                 {/* Left Side: Manifesto Items List */}
-                <div className="w-full md:w-5/12 border-r border-neutral-200 flex flex-col bg-white overflow-hidden">
+                <div
+                  className={`w-full md:w-5/12 border-r border-neutral-200 flex flex-col bg-white overflow-hidden ${
+                    mobileManifestoView === 'list' ? 'flex flex-1' : 'hidden md:flex'
+                  }`}
+                >
                   
                   {/* Top Header of Left column: Add New Button & Sector Filter */}
                   <div className="p-3.5 border-b border-neutral-200 space-y-2.5 bg-neutral-50">
@@ -1049,7 +1103,10 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                       </span>
                       <button
                         type="button"
-                        onClick={() => setIsAddingNewManifesto(true)}
+                        onClick={() => {
+                          setIsAddingNewManifesto(true);
+                          setMobileManifestoView('editor');
+                        }}
                         className="flex items-center gap-1 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs"
                       >
                         <PlusCircle className="w-3.5 h-3.5" />
@@ -1178,6 +1235,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                               onClick={() => {
                                 setSelectedManifestoId(item.id);
                                 setIsAddingNewManifesto(false);
+                                setMobileManifestoView('editor');
                               }}
                               className="flex-1 text-left cursor-pointer flex flex-col gap-1.5"
                             >
@@ -1307,7 +1365,31 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                 </div>
 
                 {/* Right Side: Manifesto Pledge Editor / Creator */}
-                <div className="w-full md:w-7/12 flex-1 flex flex-col bg-white overflow-y-auto p-4 sm:p-6">
+                <div
+                  className={`w-full md:w-7/12 flex-1 flex flex-col bg-white overflow-y-auto p-3.5 sm:p-6 pb-14 sm:pb-6 ${
+                    mobileManifestoView === 'editor' ? 'flex' : 'hidden md:flex'
+                  }`}
+                >
+                  {/* Mobile Back Button to Return to Manifesto List */}
+                  <div className="md:hidden flex items-center justify-between pb-2.5 mb-2.5 border-b border-neutral-200 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setMobileManifestoView('list')}
+                      className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-50 px-3 py-1.5 rounded-xl cursor-pointer"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span>{language === 'bn' ? 'তালিকায় ফিরে যান' : 'Back to List'}</span>
+                    </button>
+                    {isAddingNewManifesto ? (
+                      <span className="text-xs font-bold text-emerald-900">
+                        {language === 'bn' ? '+ নতুন প্রতিশ্রুতি' : '+ Add New'}
+                      </span>
+                    ) : currentManifesto ? (
+                      <span className="text-[11px] font-mono font-bold text-emerald-800">
+                        %{currentManifesto.progressPercentage}
+                      </span>
+                    ) : null}
+                  </div>
                   
                   {isAddingNewManifesto ? (
                     /* CREATE NEW MANIFESTO PLEDGE FORM */
@@ -1321,7 +1403,10 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                         </div>
                         <button
                           type="button"
-                          onClick={() => setIsAddingNewManifesto(false)}
+                          onClick={() => {
+                            setIsAddingNewManifesto(false);
+                            setMobileManifestoView('list');
+                          }}
                           className="text-xs text-neutral-500 hover:text-neutral-800"
                         >
                           {language === 'bn' ? 'বাতিল' : 'Cancel'}
@@ -1444,10 +1529,13 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex justify-end gap-2 pt-2">
+                      <div className="flex justify-end gap-2 pt-2 pb-6 sm:pb-2">
                         <button
                           type="button"
-                          onClick={() => setIsAddingNewManifesto(false)}
+                          onClick={() => {
+                            setIsAddingNewManifesto(false);
+                            setMobileManifestoView('list');
+                          }}
                           className="px-4 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-100 rounded-xl"
                         >
                           {language === 'bn' ? 'বাতিল' : 'Cancel'}
@@ -1826,7 +1914,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
 
             {/* TAB 3: PROFILE SLOGANS & SECURITY SETTINGS */}
             {activeTab === 'profile_settings' && (
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-6">
+              <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 md:p-8 space-y-6 pb-16 sm:pb-8">
                 
                 {profileSuccessMsg && (
                   <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold">
