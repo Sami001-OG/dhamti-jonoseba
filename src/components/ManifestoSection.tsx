@@ -136,10 +136,10 @@ export const ManifestoSection: React.FC<ManifestoSectionProps> = ({
             {language === 'bn' ? 'ধামতী ইউনিয়ন রূপকল্প ও নির্বাচনী ইশতেহার' : 'Dhamti Vision & Electoral Manifesto Progress'}
           </h2>
           
-          <p className="text-sm sm:text-base text-neutral-600 mt-2.5 leading-relaxed">
+          <p className="text-sm sm:text-base text-neutral-600 mt-2.5 leading-relaxed font-sans-bangla">
             {language === 'bn'
-              ? 'জনগণের দেওয়া আমানত বাস্তবায়নে আমাদের প্রতিটি প্রতিশ্রুতির অগ্রগতি স্বচ্ছতার সাথে সরাসরি প্রদর্শন করা হচ্ছে। অ্যাডমিন প্যানেল থেকে এই অগ্রগতির সরাসরি হালনাগাদ করা হয়।'
-              : 'Real-time transparency on every electoral pledge and development commitment made for the citizens of Dhamti Union.'}
+              ? 'ধামতীবাসীর উন্নয়ন ও কল্যাণে গৃহীত প্রতিটি উন্নয়ন প্রতিশ্রুতির মাঠপর্যায়ের অগ্রগতি স্বচ্ছতার সাথে সরাসরি পর্যবেক্ষণ করুন।'
+              : 'Real-time transparency on every development commitment and community pledge made for the citizens of Dhamti Union.'}
           </p>
         </div>
 

@@ -1,6 +1,6 @@
 import { ProblemReport, AreaStat, CategoryStat, LeaderProfile } from '../types';
 
-export const LEADER_PERMANENT_PHOTO_URL = 'https://i.ibb.co.com/3y27qH6j/Messenger-creation-73-BA7561-7364-4634-A106-64-EDB2-DA0-DF3.jpg';
+export const LEADER_PERMANENT_PHOTO_URL = '/leader.jpg';
 
 export const DEFAULT_PROFILE: LeaderProfile = {
   name: 'মোঃ আনোয়ার হোসেন ভূঁইয়া',
@@ -9,7 +9,7 @@ export const DEFAULT_PROFILE: LeaderProfile = {
   mainSlogan: 'আমাদের ধামতী আমরাই গড়ব',
   subSlogan: 'একসাথে গড়ব আগামীর ধামতী',
   heroAnnouncement: 'আমরা এখানে আছি আপনাদের সমস্যা সম্পর্কে জানতে',
-  profileImage: LEADER_PERMANENT_PHOTO_URL,
+  profileImage: '/leader.jpg',
   phone: '01613394074',
   email: 'Anwarbhuiyan184@gmail.com',
   officeAddress: 'ধামতী ইউনিয়ন জনসেবা কার্যালয়, দেবিদ্বার, কুমিল্লা',

@@ -39,19 +39,20 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY_PROFILE);
       if (saved) {
         const parsed = JSON.parse(saved);
-        const phone = (!parsed.phone || parsed.phone.includes('1700-000000')) ? DEFAULT_PROFILE.phone : parsed.phone;
-        const email = (!parsed.email || parsed.email.includes('seba@dhamti.org')) ? DEFAULT_PROFILE.email : parsed.email;
         return {
           ...parsed,
-          phone,
-          email,
-          profileImage: LEADER_PERMANENT_PHOTO_URL,
+          phone: DEFAULT_PROFILE.phone, // Enforce official 01613394074
+          email: DEFAULT_PROFILE.email, // Enforce official Anwarbhuiyan184@gmail.com
+          profileImage: '/leader.jpg',
         };
       }
     } catch {
       // ignore
     }
-    return DEFAULT_PROFILE;
+    return {
+      ...DEFAULT_PROFILE,
+      profileImage: '/leader.jpg',
+    };
   });
 
   // Persistent Electoral Manifesto (updated directly by admin)

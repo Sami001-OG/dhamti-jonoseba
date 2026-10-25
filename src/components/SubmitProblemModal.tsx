@@ -535,7 +535,7 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder={language === 'bn' ? '০১৭১২-XXXXXX' : '01712-XXXXXX'}
+                      placeholder={language === 'bn' ? '০১৬১৩-XXXXXX' : '01613-XXXXXX'}
                       className="w-full px-3.5 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"
                     />
                   </div>

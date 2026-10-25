@@ -10,27 +10,28 @@
   }
 
   body {
-    font-family: 'Hind Siliguri', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Hind Siliguri', 'Noto Sans Bengali', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
-    letter-spacing: 0;
-    line-height: 1.65;
+    letter-spacing: normal;
+    line-height: 1.75;
+    color: #1f2937; /* Soothing slate-800 instead of harsh harsh pitch black */
   }
   
-  /* Authentic Editorial Bengali Typography */
+  /* Natural Editorial Bengali Typography */
   .font-serif-bangla {
-    font-family: 'Noto Serif Bengali', Georgia, Cambria, serif;
-    letter-spacing: 0 !important;
+    font-family: 'Noto Serif Bengali', 'Hind Siliguri', Georgia, serif;
+    letter-spacing: normal !important;
   }
 
   .font-sans-bangla {
-    font-family: 'Hind Siliguri', 'Plus Jakarta Sans', sans-serif;
-    letter-spacing: 0 !important;
+    font-family: 'Hind Siliguri', 'Noto Sans Bengali', 'Plus Jakarta Sans', sans-serif;
+    letter-spacing: normal !important;
   }
 
   .font-heading {
     font-family: 'Noto Serif Bengali', 'Hind Siliguri', serif;
-    letter-spacing: 0 !important;
+    letter-spacing: normal !important;
   }
 
   .font-mono-num {
@@ -38,10 +39,11 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Prevent letter-spacing distortion on Bengali conjuncts (যুক্তাক্ষর) */
+  /* Prevent letter-spacing distortion on Bengali conjuncts (যুক্তাক্ষর) with calm breathing room */
   :lang(bn), [lang="bn"], .bengali-text {
     letter-spacing: normal !important;
-    word-spacing: 0.05em;
+    word-spacing: 0.03em;
+    line-height: 1.75;
   }
 
   /* Custom subtle scrollbars for responsive lists */

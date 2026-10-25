@@ -1,6 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Language } from '../types';
-import { Globe, PlusCircle } from 'lucide-react';
+import { 
+  Globe, 
+  PlusCircle, 
+  Menu, 
+  X, 
+  Compass, 
+  FileCheck2, 
+  BarChart3, 
+  MessageSquareText, 
+  Search 
+} from 'lucide-react';
 
 interface HeaderProps {
   language: Language;
@@ -15,19 +25,42 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenReportModal,
   onOpenTrackModal,
 }) => {
-  return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-neutral-200">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-6">
-        {/* Zone 1: Brand title, single line (Text only) */}
-        <a 
-          href="#home" 
-          className="text-base sm:text-lg md:text-xl font-extrabold tracking-tight text-emerald-900 hover:text-emerald-700 whitespace-nowrap shrink-0 transition-colors"
-        >
-          <span className="hidden min-[380px]:inline">{language === 'bn' ? 'জনসেবা মঞ্চ' : 'Jonoseba'}</span>
-          <span className="min-[380px]:hidden">{language === 'bn' ? 'জনসেবা' : 'Seba'}</span>
-        </a>
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-        {/* Zone 2: Concise public citizen nav links */}
+  const handleMobileNavClick = (callback?: () => void) => {
+    setMobileMenuOpen(false);
+    if (callback) {
+      callback();
+    }
+  };
+
+  return (
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-neutral-200/80 shadow-2xs">
+      {/* Primary Top Bar */}
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-15 sm:h-16 flex items-center justify-between gap-2 sm:gap-6">
+        
+        {/* Brand / Logo */}
+        <div className="flex items-center gap-2">
+          {/* Mobile Menu Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-1.5 text-neutral-600 hover:text-emerald-800 hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
+            aria-label="Toggle Navigation Menu"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5 text-neutral-800" /> : <Menu className="w-5 h-5" />}
+          </button>
+
+          <a 
+            href="#hero-banner" 
+            className="text-base sm:text-lg md:text-xl font-bold tracking-tight text-emerald-950 hover:text-emerald-800 whitespace-nowrap shrink-0 transition-colors font-serif-bangla"
+          >
+            <span className="hidden min-[380px]:inline">{language === 'bn' ? 'ধামতী জনসেবা মঞ্চ' : 'Dhamti Jonoseba'}</span>
+            <span className="min-[380px]:hidden">{language === 'bn' ? 'জনসেবা' : 'Jonoseba'}</span>
+          </a>
+        </div>
+
+        {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center gap-5 lg:gap-6 text-sm font-medium text-neutral-600">
           <a href="#hero-banner" className="hover:text-emerald-800 transition-colors whitespace-nowrap shrink-0">
             {language === 'bn' ? 'মূলবার্তা' : 'Overview'}
@@ -44,35 +77,132 @@ export const Header: React.FC<HeaderProps> = ({
           <button 
             type="button"
             onClick={onOpenTrackModal} 
-            className="hover:text-emerald-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="hover:text-emerald-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-1.5"
           >
-            {language === 'bn' ? 'ট্র্যাকিং' : 'Track Status'}
+            <Search className="w-3.5 h-3.5 text-neutral-500" />
+            <span>{language === 'bn' ? 'ট্র্যাকিং' : 'Track Status'}</span>
           </button>
         </nav>
 
-        {/* Zone 3: 1 primary action + Language toggle */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Right CTA Actions: Language Toggle & Primary Report Button */}
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <button
             type="button"
             onClick={() => onLanguageChange(language === 'bn' ? 'en' : 'bn')}
-            className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-md transition-colors whitespace-nowrap cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200/90 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             aria-label="Toggle Language"
           >
-            <Globe className="w-3.5 h-3.5" />
-            <span className="text-[11px] sm:text-xs">{language === 'bn' ? 'EN' : 'বাংলা'}</span>
+            <Globe className="w-3.5 h-3.5 text-neutral-500" />
+            <span className="text-[11px] sm:text-xs font-semibold">{language === 'bn' ? 'EN' : 'বাংলা'}</span>
           </button>
 
           <button
             type="button"
             onClick={onOpenReportModal}
-            className="flex items-center gap-1 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-white bg-emerald-700 hover:bg-emerald-800 active:scale-95 rounded-lg shadow-sm transition-all whitespace-nowrap shrink-0 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-white bg-emerald-700 hover:bg-emerald-800 active:scale-98 rounded-lg shadow-sm transition-all whitespace-nowrap shrink-0 cursor-pointer"
           >
             <PlusCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-            <span className="hidden min-[440px]:inline">{language === 'bn' ? 'অভিযোগ / উপদেশ দিন' : 'Report / Advise'}</span>
-            <span className="min-[440px]:hidden">{language === 'bn' ? 'মতামত' : 'Submit'}</span>
+            <span className="hidden min-[480px]:inline">{language === 'bn' ? 'অভিযোগ / উপদেশ দিন' : 'Report / Advise'}</span>
+            <span className="min-[480px]:hidden">{language === 'bn' ? 'মতামত' : 'Submit'}</span>
           </button>
         </div>
       </div>
+
+      {/* MOBILE INTEGRATED NAV STRIP: Fits the entire desktop navigation directly into mobile view */}
+      <div className="md:hidden border-t border-neutral-200/80 bg-neutral-50/95 backdrop-blur-md px-1.5 py-1 shadow-2xs">
+        <div className="grid grid-cols-5 gap-1 text-center">
+          <a
+            href="#hero-banner"
+            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[11px] font-medium text-neutral-700 hover:text-emerald-900 hover:bg-emerald-50/80 transition-colors"
+          >
+            <Compass className="w-3.5 h-3.5 text-emerald-700 mb-0.5" />
+            <span className="truncate w-full leading-tight">{language === 'bn' ? 'মূলবার্তা' : 'Overview'}</span>
+          </a>
+
+          <a
+            href="#manifesto"
+            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[11px] font-semibold text-emerald-950 bg-emerald-100/70 border border-emerald-200/80 transition-colors"
+          >
+            <FileCheck2 className="w-3.5 h-3.5 text-emerald-800 mb-0.5" />
+            <span className="truncate w-full leading-tight">{language === 'bn' ? 'ইশতেহার' : 'Manifesto'}</span>
+          </a>
+
+          <a
+            href="#statistics"
+            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[11px] font-medium text-neutral-700 hover:text-emerald-900 hover:bg-emerald-50/80 transition-colors"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-emerald-700 mb-0.5" />
+            <span className="truncate w-full leading-tight">{language === 'bn' ? 'পরিসংখ্যান' : 'Stats'}</span>
+          </a>
+
+          <a
+            href="#problem-feed"
+            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[11px] font-medium text-neutral-700 hover:text-emerald-900 hover:bg-emerald-50/80 transition-colors"
+          >
+            <MessageSquareText className="w-3.5 h-3.5 text-emerald-700 mb-0.5" />
+            <span className="truncate w-full leading-tight">{language === 'bn' ? 'অভিযোগ' : 'Grievances'}</span>
+          </a>
+
+          <button
+            type="button"
+            onClick={onOpenTrackModal}
+            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[11px] font-medium text-neutral-700 hover:text-emerald-900 hover:bg-emerald-50/80 transition-colors cursor-pointer"
+          >
+            <Search className="w-3.5 h-3.5 text-emerald-700 mb-0.5" />
+            <span className="truncate w-full leading-tight">{language === 'bn' ? 'ট্র্যাকিং' : 'Track'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* MOBILE EXPANDED MENU DRAWER (When toggled via hamburger) */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t border-neutral-200 bg-white px-4 py-3 shadow-lg space-y-2 animate-in slide-in-from-top-2 duration-200">
+          <a
+            href="#hero-banner"
+            onClick={() => handleMobileNavClick()}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-neutral-800 hover:bg-neutral-100 hover:text-emerald-800 transition-colors"
+          >
+            <Compass className="w-4 h-4 text-emerald-700" />
+            <span>{language === 'bn' ? 'মূলবার্তা (সারসংক্ষেপ)' : 'Overview'}</span>
+          </a>
+
+          <a
+            href="#manifesto"
+            onClick={() => handleMobileNavClick()}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-emerald-950 bg-emerald-50 hover:bg-emerald-100/70 transition-colors"
+          >
+            <FileCheck2 className="w-4 h-4 text-emerald-700" />
+            <span>{language === 'bn' ? 'নির্বাচনী ইশতেহার ও রূপকল্প' : 'Electoral Manifesto'}</span>
+          </a>
+
+          <a
+            href="#statistics"
+            onClick={() => handleMobileNavClick()}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-neutral-800 hover:bg-neutral-100 hover:text-emerald-800 transition-colors"
+          >
+            <BarChart3 className="w-4 h-4 text-emerald-700" />
+            <span>{language === 'bn' ? 'এলাকাভিত্তিক পরিসংখ্যান' : 'Ward Statistics'}</span>
+          </a>
+
+          <a
+            href="#problem-feed"
+            onClick={() => handleMobileNavClick()}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-neutral-800 hover:bg-neutral-100 hover:text-emerald-800 transition-colors"
+          >
+            <MessageSquareText className="w-4 h-4 text-emerald-700" />
+            <span>{language === 'bn' ? 'অভিযোগ ও উপদেশ তালিকা' : 'Citizen Feed'}</span>
+          </a>
+
+          <button
+            type="button"
+            onClick={() => handleMobileNavClick(onOpenTrackModal)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-neutral-800 hover:bg-neutral-100 hover:text-emerald-800 transition-colors cursor-pointer text-left"
+          >
+            <Search className="w-4 h-4 text-emerald-700" />
+            <span>{language === 'bn' ? 'আবেদনের অবস্থা ট্র্যাকিং' : 'Track Application Status'}</span>
+          </button>
+        </div>
+      )}
     </header>
   );
 };
