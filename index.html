@@ -6,9 +6,6 @@
     <title>আমাদের ধামতী আমরাই গড়ব | মোঃ আনোয়ার হোসেন ভূঁইয়া - জনসেবা মঞ্চ</title>
     <meta name="description" content="আমাদের ধামতী আমরাই গড়ব - একসাথে গড়ব আগামীর ধামতী। মোঃ আনোয়ার হোসেন ভূঁইয়ার নাগরিক সেবা ও সমস্যা নিরসন পোর্টাল।" />
 
-    <!-- Canonical URL -->
-    <link rel="canonical" href="https://ais-pre-qd6uxcv4njsxaqbrks7tcp-290901399631.asia-east1.run.app/" />
-
     <!-- Favicon & Device Icons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
@@ -27,7 +24,6 @@
     <meta property="og:site_name" content="ধামতী জনসেবা মঞ্চ" />
     <meta property="og:title" content="আমাদের ধামতী আমরাই গড়ব | মোঃ আনোয়ার হোসেন ভূঁইয়া" />
     <meta property="og:description" content="আমাদের ধামতী আমরাই গড়ব - একসাথে গড়ব আগামীর ধামতী। মোঃ আনোয়ার হোসেন ভূঁইয়ার নাগরিক সেবা ও সমস্যা নিরসন পোর্টাল।" />
-    <meta property="og:url" content="https://ais-pre-qd6uxcv4njsxaqbrks7tcp-290901399631.asia-east1.run.app/" />
     <meta property="og:locale" content="bn_BD" />
 
     <!-- Primary Fast CDN Image (< 250KB, 1200x630, 100% WhatsApp/Facebook/Twitter compliant) -->
@@ -52,30 +48,41 @@
     <meta name="twitter:description" content="আমাদের ধামতী আমরাই গড়ব - একসাথে গড়ব আগামীর ধামতী। ধামতীবাসীর নাগরিক সমস্যা সরাসরি জানান ও সমাধান পর্যবেক্ষণ করুন।" />
     <meta name="twitter:image" content="https://iili.io/nkuhGIe.jpg" />
     <meta name="twitter:image:alt" content="আমাদের ধামতী আমরাই গড়ব | মোঃ আনোয়ার হোসেন ভূঁইয়া" />
-    <meta name="twitter:url" content="https://ais-pre-qd6uxcv4njsxaqbrks7tcp-290901399631.asia-east1.run.app/" />
 
     <!-- Natural, High-Legibility Soothing Bengali & Latin Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@300;400;500;600&family=Noto+Serif+Bengali:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script>
-      // Dynamically align canonical and og:url with whatever custom domain user loads
+      // Dynamically align canonical and og:url with whatever deployed domain or custom URL the user opens
       (function() {
         try {
           if (typeof window !== 'undefined' && window.location) {
             var fullUrl = window.location.href;
+            
             var ogUrl = document.querySelector('meta[property="og:url"]');
-            if (ogUrl) {
-              ogUrl.setAttribute('content', fullUrl);
+            if (!ogUrl) {
+              ogUrl = document.createElement('meta');
+              ogUrl.setAttribute('property', 'og:url');
+              document.head.appendChild(ogUrl);
             }
+            ogUrl.setAttribute('content', fullUrl);
+
             var twitterUrl = document.querySelector('meta[name="twitter:url"]');
-            if (twitterUrl) {
-              twitterUrl.setAttribute('content', fullUrl);
+            if (!twitterUrl) {
+              twitterUrl = document.createElement('meta');
+              twitterUrl.setAttribute('name', 'twitter:url');
+              document.head.appendChild(twitterUrl);
             }
+            twitterUrl.setAttribute('content', fullUrl);
+
             var canonical = document.querySelector('link[rel="canonical"]');
-            if (canonical) {
-              canonical.setAttribute('href', fullUrl);
+            if (!canonical) {
+              canonical = document.createElement('link');
+              canonical.setAttribute('rel', 'canonical');
+              document.head.appendChild(canonical);
             }
+            canonical.setAttribute('href', fullUrl);
           }
         } catch (e) {}
       })();
@@ -89,7 +96,6 @@
       "name": "ধামতী ইউনিয়ন নাগরিক সেবা মঞ্চ",
       "alternateName": "Dhamti Jonoseba Civic Portal",
       "description": "আমাদের ধামতী আমরাই গড়ব - নাগরিক সেবা ও সমস্যা নিরসন পোর্টাল। মোঃ আনোয়ার হোসেন ভূঁইয়া কর্তৃক পরিচালিত।",
-      "url": "https://ais-pre-qd6uxcv4njsxaqbrks7tcp-290901399631.asia-east1.run.app/",
       "image": [
         "https://iili.io/nkuhGIe.jpg",
         "https://i.ibb.co.com/5xMPWDJd/file-0000000050c0821199bc1f126d3d05ef.png"
