@@ -23,22 +23,33 @@ import {
   ShieldCheck,
   Trees,
   HelpCircle,
-  FileCheck
+  FileCheck,
+  Trash2
 } from 'lucide-react';
 
 interface ManifestoSectionProps {
   language: Language;
   manifestoItems: ManifestoItem[];
+  onDeleteManifestoItem?: (itemId: string) => void;
+  onDeleteCompletedManifestos?: () => void;
+  onOpenAdmin?: () => void;
 }
 
 export const ManifestoSection: React.FC<ManifestoSectionProps> = ({
   language,
   manifestoItems,
+  onDeleteManifestoItem,
+  onDeleteCompletedManifestos,
+  onOpenAdmin,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+
+  // Safe inline confirmation states
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmDeleteCompleted, setConfirmDeleteCompleted] = useState<boolean>(false);
 
   // Category Icon Resolver
   const getCategoryIcon = (category: ManifestoCategory) => {
@@ -319,6 +330,68 @@ export const ManifestoSection: React.FC<ManifestoSectionProps> = ({
 
         </div>
 
+        {/* Dedicated Completed Manifestos Management Bar */}
+        {completedItems > 0 && (selectedStatus === 'completed' || selectedStatus === 'all') && (
+          <div className="mb-6 p-4 rounded-2xl bg-emerald-50/90 border border-emerald-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800 shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-emerald-950 flex items-center gap-2">
+                  <span>{language === 'bn' ? 'বাস্তবায়িত নির্বাচনী প্রতিশ্রুতি' : 'Completed Commitments'}</span>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-200 text-emerald-900 font-mono-num font-bold text-[11px]">
+                    {completedItems} {language === 'bn' ? 'টি সম্পন্ন' : 'done'}
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
+                  {language === 'bn'
+                    ? 'ইতিমধ্যে শতভাগ সম্পন্ন হওয়া উন্নয়ন প্রতিশ্রুতিসমূহ। প্রয়োজনে যেকোনো বাস্তবায়িত প্রতিশ্রুতি তালিকা থেকে মুছে ফেলতে পারেন।'
+                    : 'Fully delivered commitments. You can remove completed pledges if needed.'}
+                </p>
+              </div>
+            </div>
+
+            {onDeleteCompletedManifestos && (
+              <div className="shrink-0">
+                {confirmDeleteCompleted ? (
+                  <div className="flex items-center gap-2 p-1.5 bg-red-50 border border-red-300 rounded-xl text-xs animate-fadeIn">
+                    <span className="text-red-900 font-bold text-[11px]">
+                      {language === 'bn' ? `সকল বাস্তবায়িত (${completedItems} টি) মুছবেন?` : `Delete all ${completedItems}?`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDeleteCompletedManifestos();
+                        setConfirmDeleteCompleted(false);
+                      }}
+                      className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[11px] cursor-pointer shadow-xs"
+                    >
+                      {language === 'bn' ? 'হ্যাঁ, মুছুন' : 'Yes, Delete'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteCompleted(false)}
+                      className="px-2 py-1 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 rounded-lg font-medium text-[11px] cursor-pointer"
+                    >
+                      {language === 'bn' ? 'বাতিল' : 'Cancel'}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteCompleted(true)}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-red-50 text-emerald-950 hover:text-red-700 border border-emerald-300 hover:border-red-300 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                    <span>{language === 'bn' ? 'সকল বাস্তবায়িত ইশতেহার মুছুন' : 'Delete All Completed'}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Commitment Cards Grid */}
         {filteredItems.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-2xl border border-neutral-200 p-8">
@@ -468,15 +541,55 @@ export const ManifestoSection: React.FC<ManifestoSectionProps> = ({
                     )}
                   </div>
 
-                  {/* Expand/Collapse Toggle Button */}
-                  <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between">
-                    <span className="text-[11px] text-neutral-400">
-                      {language === 'bn' ? 'ধামতী ইউনিয়ন পরিষদ ও সেবাদল' : 'Dhamti Civic Leadership'}
-                    </span>
+                  {/* Expand/Collapse Toggle Button & Delete Completed Option */}
+                  <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between gap-2">
+                    <div>
+                      {item.status === 'completed' && onDeleteManifestoItem ? (
+                        confirmDeleteId === item.id ? (
+                          <div className="flex items-center gap-1.5 bg-red-50 p-1 rounded-lg border border-red-200 animate-fadeIn">
+                            <span className="text-[10px] text-red-900 font-bold">
+                              {language === 'bn' ? 'স্থায়ীভাবে মুছবেন?' : 'Delete?'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onDeleteManifestoItem(item.id);
+                                setConfirmDeleteId(null);
+                              }}
+                              className="px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold rounded cursor-pointer shadow-xs"
+                            >
+                              {language === 'bn' ? 'হ্যাঁ' : 'Yes'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="px-2 py-0.5 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 text-[10px] rounded cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(item.id)}
+                            className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                            title={language === 'bn' ? 'বাস্তবায়িত অঙ্গীকার মুছুন' : 'Delete completed pledge'}
+                          >
+                            <Trash2 className="w-3 h-3 text-red-600" />
+                            <span>{language === 'bn' ? 'বাস্তবায়িত অঙ্গীকার মুছুন' : 'Delete Completed'}</span>
+                          </button>
+                        )
+                      ) : (
+                        <span className="text-[11px] text-neutral-400">
+                          {language === 'bn' ? 'ধামতী ইউনিয়ন পরিষদ ও সেবাদল' : 'Dhamti Civic Leadership'}
+                        </span>
+                      )}
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
-                      className="flex items-center gap-1 text-xs font-semibold text-emerald-800 hover:text-emerald-900 transition-colors cursor-pointer"
+                      className="flex items-center gap-1 text-xs font-semibold text-emerald-800 hover:text-emerald-900 transition-colors cursor-pointer shrink-0"
                     >
                       <span>
                         {isExpanded

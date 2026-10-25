@@ -22,20 +22,19 @@
     <meta property="og:site_name" content="ধামতী জনসেবা মঞ্চ" />
     <meta property="og:title" content="আমাদের ধামতী আমরাই গড়ব | মোঃ আনোয়ার হোসেন ভূঁইয়া" />
     <meta property="og:description" content="আমাদের ধামতী আমরাই গড়ব - একসাথে গড়ব আগামীর ধামতী। মোঃ আনোয়ার হোসেন ভূঁইয়ার নাগরিক সেবা ও সমস্যা নিরসন পোর্টাল।" />
-    <meta property="og:image" content="https://ais-dev-qd6uxcv4njsxaqbrks7tcp-290901399631.asia-east1.run.app/og-image.png" />
-    <meta property="og:image:secure_url" content="https://ais-dev-qd6uxcv4njsxaqbrks7tcp-290901399631.asia-east1.run.app/og-image.png" />
+    <meta property="og:image" content="https://i.ibb.co.com/5xMPWDJd/file-0000000050c0821199bc1f126d3d05ef.png" />
+    <meta property="og:image:secure_url" content="https://i.ibb.co.com/5xMPWDJd/file-0000000050c0821199bc1f126d3d05ef.png" />
     <meta property="og:image:type" content="image/png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
+    <meta property="og:image:width" content="1672" />
+    <meta property="og:image:height" content="940" />
     <meta property="og:image:alt" content="আমাদের ধামতী আমরাই গড়ব | মোঃ আনোয়ার হোসেন ভূঁইয়া" />
-    <meta property="og:url" content="https://ais-dev-qd6uxcv4njsxaqbrks7tcp-290901399631.asia-east1.run.app/" />
     <meta property="og:locale" content="bn_BD" />
 
     <!-- Twitter / X Social Cards -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="আমাদের ধামতী আমরাই গড়ব | মোঃ আনোয়ার হোসেন ভূঁইয়া" />
     <meta name="twitter:description" content="আমাদের ধামতী আমরাই গড়ব - একসাথে গড়ব আগামীর ধামতী। ধামতীবাসীর নাগরিক সমস্যা সরাসরি জানান ও সমাধান পর্যবেক্ষণ করুন।" />
-    <meta name="twitter:image" content="https://ais-dev-qd6uxcv4njsxaqbrks7tcp-290901399631.asia-east1.run.app/og-image.png" />
+    <meta name="twitter:image" content="https://i.ibb.co.com/5xMPWDJd/file-0000000050c0821199bc1f126d3d05ef.png" />
     <meta name="twitter:image:alt" content="আমাদের ধামতী আমরাই গড়ব | মোঃ আনোয়ার হোসেন ভূঁইয়া" />
 
     <!-- Natural, High-Legibility Soothing Bengali & Latin Fonts -->
@@ -43,20 +42,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@300;400;500;600&family=Noto+Serif+Bengali:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script>
-      // Automatically keep canonical and social image tags aligned with the current origin
+      // Dynamically align canonical and og:url with current domain while keeping permanent image intact
       (function() {
         try {
-          if (typeof window !== 'undefined' && window.location.origin) {
-            var origin = window.location.origin;
-            var ogImg = document.querySelector('meta[property="og:image"]');
-            var ogImgSec = document.querySelector('meta[property="og:image:secure_url"]');
-            var twImg = document.querySelector('meta[name="twitter:image"]');
+          if (typeof window !== 'undefined' && window.location) {
             var ogUrl = document.querySelector('meta[property="og:url"]');
-            if (origin.indexOf('run.app') !== -1 || origin.indexOf('localhost') === -1) {
-              if (ogImg) ogImg.setAttribute('content', origin + '/og-image.png');
-              if (ogImgSec) ogImgSec.setAttribute('content', origin + '/og-image.png');
-              if (twImg) twImg.setAttribute('content', origin + '/og-image.png');
-              if (ogUrl) ogUrl.setAttribute('content', origin + window.location.pathname);
+            if (ogUrl) {
+              ogUrl.setAttribute('content', window.location.href);
             }
           }
         } catch (e) {}
@@ -71,12 +63,14 @@
       "name": "ধামতী ইউনিয়ন নাগরিক সেবা মঞ্চ",
       "alternateName": "Dhamti Jonoseba Civic Portal",
       "description": "আমাদের ধামতী আমরাই গড়ব - নাগরিক সেবা ও সমস্যা নিরসন পোর্টাল। মোঃ আনোয়ার হোসেন ভূঁইয়া কর্তৃক পরিচালিত।",
+      "image": "https://i.ibb.co.com/5xMPWDJd/file-0000000050c0821199bc1f126d3d05ef.png",
       "provider": {
         "@type": "Person",
         "name": "মোঃ আনোয়ার হোসেন ভূঁইয়া",
         "jobTitle": "জননেতা ও সমাজসেবক",
         "telephone": "+8801613394074",
-        "email": "Anwarbhuiyan184@gmail.com"
+        "email": "Anwarbhuiyan184@gmail.com",
+        "image": "https://i.ibb.co.com/5xMPWDJd/file-0000000050c0821199bc1f126d3d05ef.png"
       },
       "areaServed": {
         "@type": "AdministrativeArea",

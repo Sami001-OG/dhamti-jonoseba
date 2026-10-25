@@ -218,6 +218,10 @@ export default function App() {
     setManifestoItems((prev) => prev.filter((m) => m.id !== itemId));
   };
 
+  const handleDeleteCompletedManifestos = () => {
+    setManifestoItems((prev) => prev.filter((m) => m.status !== 'completed'));
+  };
+
   const handleResetManifesto = () => {
     setManifestoItems(INITIAL_MANIFESTO_ITEMS);
   };
@@ -248,6 +252,9 @@ export default function App() {
         <ManifestoSection
           language={language}
           manifestoItems={manifestoItems}
+          onDeleteManifestoItem={handleDeleteManifestoItem}
+          onDeleteCompletedManifestos={handleDeleteCompletedManifestos}
+          onOpenAdmin={() => setIsAdminModalOpen(true)}
         />
 
         {/* Real Statistics Section */}
@@ -316,6 +323,7 @@ export default function App() {
         onUpdateManifestoItem={handleUpdateManifestoItem}
         onAddManifestoItem={handleAddManifestoItem}
         onDeleteManifestoItem={handleDeleteManifestoItem}
+        onDeleteCompletedManifestos={handleDeleteCompletedManifestos}
         onResetManifesto={handleResetManifesto}
       />
 
