@@ -42,7 +42,8 @@ import {
   Target,
   Sliders,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  Database
 } from 'lucide-react';
 import {
   verifyAdminPin,
@@ -53,6 +54,7 @@ import {
   sanitizeString,
   sanitizeForCsv
 } from '../services/security';
+import { api, DbStatusInfo } from '../services/api';
 
 interface AdminSectionModalProps {
   isOpen: boolean;
@@ -173,6 +175,15 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
   const [confirmPin, setConfirmPin] = useState('');
   const [pinChangeError, setPinChangeError] = useState('');
   const [pinSuccessMsg, setPinSuccessMsg] = useState(false);
+
+  // Turso Database State
+  const [dbStatus, setDbStatus] = useState<DbStatusInfo | null>(null);
+
+  useEffect(() => {
+    if (isOpen && isAuthenticated) {
+      api.getStatus().then(setDbStatus).catch(() => {});
+    }
+  }, [isOpen, isAuthenticated]);
 
   useEffect(() => {
     if (problems.length > 0 && !selectedProblemId) {
@@ -2159,6 +2170,43 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                       </button>
                     </div>
                   </form>
+                </div>
+
+                {/* 5. Turso Database Information & Architecture Card */}
+                <div className="bg-gradient-to-br from-neutral-900 to-neutral-950 text-white p-5 rounded-2xl border border-neutral-800 shadow-md space-y-4 max-w-3xl">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold flex items-center gap-2 text-white">
+                      <Database className="w-4 h-4 text-emerald-400" />
+                      <span>{language === 'bn' ? 'টারসো ডেটাবেস সংযোগ ও অবস্থা (Turso DB)' : 'Turso Database Architecture & Status'}</span>
+                    </h4>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-950 text-emerald-300 border border-emerald-700/60">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>{dbStatus?.isRemote ? (language === 'bn' ? 'টারসো ক্লাউড সক্রিয়' : 'Turso Cloud Active') : (language === 'bn' ? 'libSQL সক্রিয়' : 'libSQL Active')}</span>
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="bg-neutral-800/80 p-3 rounded-xl border border-neutral-700/70">
+                      <span className="text-[11px] text-neutral-400 block">{language === 'bn' ? 'প্রোভাইডার ইঞ্জিন' : 'Database Provider'}</span>
+                      <span className="text-sm font-bold text-emerald-300 mt-0.5 block">Turso (libSQL)</span>
+                    </div>
+                    <div className="bg-neutral-800/80 p-3 rounded-xl border border-neutral-700/70">
+                      <span className="text-[11px] text-neutral-400 block">{language === 'bn' ? 'সংরক্ষিত আবেদন' : 'Stored Reports'}</span>
+                      <span className="text-sm font-bold text-amber-300 mt-0.5 block font-mono-num">{problems.length} {language === 'bn' ? 'টি' : 'records'}</span>
+                    </div>
+                    <div className="bg-neutral-800/80 p-3 rounded-xl border border-neutral-700/70">
+                      <span className="text-[11px] text-neutral-400 block">{language === 'bn' ? 'ইশতেহার প্রতিশ্রুতি' : 'Manifesto Pledges'}</span>
+                      <span className="text-sm font-bold text-emerald-300 mt-0.5 block font-mono-num">{manifestoItems.length} {language === 'bn' ? 'টি' : 'items'}</span>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-neutral-400 bg-neutral-950/70 p-3 rounded-xl border border-neutral-800">
+                    <p className="leading-relaxed">
+                      {language === 'bn'
+                        ? 'টারসো ক্লাউড ডেটাবেসের সাথে সংযুক্ত করতে .env ফাইলে TURSO_DATABASE_URL এবং TURSO_AUTH_TOKEN কনফিগার করুন।'
+                        : 'To connect to your hosted Turso cloud database, configure TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in your environment variables.'}
+                    </p>
+                  </div>
                 </div>
 
               </div>
