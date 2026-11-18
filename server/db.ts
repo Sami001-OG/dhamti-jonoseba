@@ -106,6 +106,15 @@ export async function initDatabase() {
     );
   `);
 
+  // সাইটের ছোট সেটিংস (যেমন ওয়ার্ডের গ্রামের নাম) key/value আকারে
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS site_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+
   // Seed Leader Profile if empty
   const profileCountResult = await db.execute(`SELECT COUNT(*) as count FROM leader_profile WHERE id = 'current'`);
   const profileCount = Number(profileCountResult.rows[0]?.count ?? 0);
@@ -469,12 +478,19 @@ export async function resetManifestoItems(initialItems: ManifestoItem[]): Promis
 // LEADER PROFILE CRUD OPERATIONS
 // ==========================================
 
+const DATA_URL_IMAGE = /^data:image\/(jpeg|png|webp);base64,/;
+
 export async function getLeaderProfile(): Promise<LeaderProfile> {
   const res = await db.execute(`SELECT * FROM leader_profile WHERE id = 'current'`);
   if (res.rows.length === 0) {
     return DEFAULT_PROFILE;
   }
   const row = res.rows[0];
+  const stored = row.profile_image ? String(row.profile_image) : '';
+  // অ্যাডমিনের আপলোড করা ছবি ডেটাবেসে থাকে; পাবলিক URL-এ ভার্সন যোগ করি যেন নতুন ছবি সঙ্গে সঙ্গে দেখা যায়
+  const profileImage = DATA_URL_IMAGE.test(stored)
+    ? `/api/profile/photo?v=${encodeURIComponent(String(row.updated_at || '1'))}`
+    : stored || '/leader.jpg';
   return {
     name: String(row.name),
     designation: String(row.designation),
@@ -482,13 +498,14 @@ export async function getLeaderProfile(): Promise<LeaderProfile> {
     mainSlogan: String(row.main_slogan),
     subSlogan: String(row.sub_slogan),
     heroAnnouncement: String(row.hero_announcement),
-    profileImage: row.profile_image ? String(row.profile_image) : '/leader.jpg',
+    profileImage,
     phone: String(row.phone || DEFAULT_PROFILE.phone),
     email: String(row.email || DEFAULT_PROFILE.email),
     officeAddress: String(row.office_address || DEFAULT_PROFILE.officeAddress),
   };
 }
 
+/** প্রোফাইলের লেখা তথ্য হালনাগাদ। ছবি এখানে বদলায় না (ছবির জন্য আলাদা ফাংশন)। */
 export async function updateLeaderProfile(profile: LeaderProfile): Promise<LeaderProfile> {
   const now = new Date().toISOString();
   await db.execute({
@@ -503,7 +520,6 @@ export async function updateLeaderProfile(profile: LeaderProfile): Promise<Leade
         main_slogan = excluded.main_slogan,
         sub_slogan = excluded.sub_slogan,
         hero_announcement = excluded.hero_announcement,
-        profile_image = excluded.profile_image,
         phone = excluded.phone,
         email = excluded.email,
         office_address = excluded.office_address,
@@ -516,14 +532,52 @@ export async function updateLeaderProfile(profile: LeaderProfile): Promise<Leade
       profile.mainSlogan,
       profile.subSlogan,
       profile.heroAnnouncement,
-      profile.profileImage || '/leader.jpg',
+      '/leader.jpg',
       profile.phone || DEFAULT_PROFILE.phone,
       profile.email || DEFAULT_PROFILE.email,
       profile.officeAddress || DEFAULT_PROFILE.officeAddress,
       now,
     ],
   });
-  return profile;
+  return getLeaderProfile();
+}
+
+/** আপলোড করা ছবির ডেটা (data URL) — না থাকলে null */
+export async function getLeaderPhotoDataUrl(): Promise<string | null> {
+  const res = await db.execute(`SELECT profile_image FROM leader_profile WHERE id = 'current'`);
+  const v = res.rows[0]?.profile_image ? String(res.rows[0].profile_image) : '';
+  return DATA_URL_IMAGE.test(v) ? v : null;
+}
+
+/** ছবি বসাই (dataUrl) অথবা মুছে ডিফল্টে ফিরি (null) */
+export async function setLeaderPhoto(dataUrl: string | null): Promise<LeaderProfile> {
+  // প্রোফাইল সারি না থাকলে আগে ডিফল্ট বসাই
+  const existing = await db.execute(`SELECT 1 FROM leader_profile WHERE id = 'current'`);
+  if (existing.rows.length === 0) await updateLeaderProfile(DEFAULT_PROFILE);
+  await db.execute({
+    sql: `UPDATE leader_profile SET profile_image = ?, updated_at = ? WHERE id = 'current'`,
+    args: [dataUrl ?? '/leader.jpg', new Date().toISOString()],
+  });
+  return getLeaderProfile();
+}
+
+// ==========================================
+// SITE SETTINGS (key/value)
+// ==========================================
+
+export async function getSetting(key: string): Promise<string | null> {
+  const res = await db.execute({ sql: `SELECT value FROM site_settings WHERE key = ?`, args: [key] });
+  return res.rows[0] ? String(res.rows[0].value) : null;
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  await db.execute({
+    sql: `
+      INSERT INTO site_settings (key, value, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `,
+    args: [key, value, new Date().toISOString()],
+  });
 }
 
 // ==========================================

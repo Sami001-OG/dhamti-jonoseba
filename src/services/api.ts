@@ -35,6 +35,11 @@ async function ensureOk(res: Response, fallback: string): Promise<void> {
 
 const jsonHeaders = { 'Content-Type': 'application/json' };
 
+/** ওয়ার্ড আইডি (ward-01…) → গ্রামের নাম */
+export interface SiteSettings {
+  wardVillages: Record<string, string>;
+}
+
 export const api = {
   // Admin auth (সার্ভার-সাইড সেশন কুকি)
   async adminSession(): Promise<{ authenticated: boolean; configured: boolean }> {
@@ -224,6 +229,45 @@ export const api = {
       body: JSON.stringify(profile),
     });
     await ensureOk(res, 'সার্ভারে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+    return await res.json();
+  },
+
+  // প্রোফাইল ছবি (শুধু অ্যাডমিন): data URL পাঠালে সার্ভার যাচাই করে সংরক্ষণ করে
+  async setProfilePhoto(dataUrl: string): Promise<LeaderProfile> {
+    const res = await fetch('/api/profile/photo', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: jsonHeaders,
+      body: JSON.stringify({ image: dataUrl }),
+    });
+    await ensureOk(res, 'ছবি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।');
+    return await res.json();
+  },
+
+  async resetProfilePhoto(): Promise<LeaderProfile> {
+    const res = await fetch('/api/profile/photo', {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    });
+    await ensureOk(res, 'ছবি বদলানো যায়নি। আবার চেষ্টা করুন।');
+    return await res.json();
+  },
+
+  // সাইটের সেটিংস: ওয়ার্ডের গ্রামের নাম
+  async getSettings(): Promise<SiteSettings> {
+    const res = await fetch('/api/settings');
+    await ensureOk(res, 'সার্ভারে সমস্যা হয়েছে।');
+    return await res.json();
+  },
+
+  async updateSettings(settings: SiteSettings): Promise<SiteSettings> {
+    const res = await fetch('/api/settings', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: jsonHeaders,
+      body: JSON.stringify(settings),
+    });
+    await ensureOk(res, 'সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।');
     return await res.json();
   },
 };

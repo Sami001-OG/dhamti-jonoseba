@@ -21,6 +21,7 @@ import { api, ApiError } from './services/api';
 
 const STORAGE_KEY_PROBLEMS = 'dhamti_real_problems_v1';
 const STORAGE_KEY_PROFILE = 'dhamti_leader_profile_v1';
+const STORAGE_KEY_VILLAGES = 'dhamti_ward_villages_v1';
 const STORAGE_KEY_MANIFESTO = 'dhamti_electoral_manifesto_v2';
 
 export default function App() {
@@ -47,20 +48,23 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY_PROFILE);
       if (saved) {
         const parsed = JSON.parse(saved);
-        return {
-          ...parsed,
-          phone: DEFAULT_PROFILE.phone, // Enforce official 01613394074
-          email: DEFAULT_PROFILE.email, // Enforce official Anwarbhuiyan184@gmail.com
-          profileImage: '/leader.jpg',
-        };
+        return { ...DEFAULT_PROFILE, ...parsed };
       }
     } catch {
       // ignore
     }
-    return {
-      ...DEFAULT_PROFILE,
-      profileImage: '/leader.jpg',
-    };
+    return DEFAULT_PROFILE;
+  });
+
+  // ওয়ার্ডের গ্রামের নাম (অ্যাডমিন বদলাতে পারেন): { 'ward-01': 'গ্রাম১, গ্রাম২' }
+  const [wardVillages, setWardVillages] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_VILLAGES);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return {};
   });
 
   // Persistent Electoral Manifesto (updated directly by admin)
@@ -99,10 +103,11 @@ export default function App() {
     let isMounted = true;
     async function fetchFromTurso() {
       try {
-        const [dbProblems, dbManifesto, dbProfile] = await Promise.all([
+        const [dbProblems, dbManifesto, dbProfile, dbSettings] = await Promise.all([
           api.getProblems().catch(() => null),
           api.getManifesto().catch(() => null),
           api.getProfile().catch(() => null),
+          api.getSettings().catch(() => null),
         ]);
         if (!isMounted) return;
 
@@ -112,6 +117,9 @@ export default function App() {
         // ফাঁকা তালিকাও সত্য (ইশতেহার এখনো প্রকাশিত হয়নি), তাই পুরনো ক্যাশ ঝেড়ে ফেলি
         if (dbManifesto && Array.isArray(dbManifesto)) {
           setManifestoItems(dbManifesto);
+        }
+        if (dbSettings && dbSettings.wardVillages && typeof dbSettings.wardVillages === 'object') {
+          setWardVillages(dbSettings.wardVillages);
         }
         if (dbProfile && dbProfile.name) {
           setLeaderProfile((prev) => ({
@@ -150,6 +158,14 @@ export default function App() {
     }
   }, [leaderProfile]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_VILLAGES, JSON.stringify(wardVillages));
+    } catch {
+      // storage unavailable
+    }
+  }, [wardVillages]);
+
   // Sync manifesto to localStorage as local cache
   useEffect(() => {
     try {
@@ -169,13 +185,17 @@ export default function App() {
     return INITIAL_AREAS.map((area) => {
       const wardProblems = problems.filter((p) => p.ward === area.wardNumber);
       const resolved = wardProblems.filter((p) => p.status === 'resolved');
+      const villages = (wardVillages[area.wardNumber] || '').trim();
       return {
         ...area,
+        // গ্রামের নাম থাকলে ওয়ার্ডের পাশে বসে: "ওয়ার্ড নং ০১ (গ্রাম১, গ্রাম২)"
+        wardNameBn: villages ? `${area.wardNameBn} (${villages})` : area.wardNameBn,
+        wardNameEn: villages ? `${area.wardNameEn} (${villages})` : area.wardNameEn,
         totalProblems: wardProblems.length,
         resolvedProblems: resolved.length,
       };
     });
-  }, [problems]);
+  }, [problems, wardVillages]);
 
   // Real dynamic category counts
   const computedCategories: CategoryStat[] = useMemo(() => {
@@ -328,14 +348,21 @@ export default function App() {
     }
   };
 
+  // অ্যাডমিন ফর্মের জন্য: ব্যর্থ হলে ত্রুটি ছুঁড়ি, ফর্ম নিজেই কারণ দেখায়
   const handleUpdateLeaderProfile = async (updated: LeaderProfile) => {
-    try {
-      const saved = await api.updateProfile(updated);
-      setLeaderProfile((prev) => ({ ...prev, ...saved, profileImage: saved.profileImage || '/leader.jpg' }));
-    } catch (err) {
-      console.error('Failed to update profile in Turso DB:', err);
-      setNotice(failMessage(err, 'প্রোফাইল সংরক্ষণ করা যায়নি। আবার লগইন করে চেষ্টা করুন।'));
-    }
+    const saved = await api.updateProfile(updated);
+    setLeaderProfile((prev) => ({ ...prev, ...saved }));
+  };
+
+  // ছবি বদলানো (dataUrl) বা মুছে আগের ছবিতে ফেরা (null)
+  const handleSetLeaderPhoto = async (dataUrl: string | null) => {
+    const saved = dataUrl ? await api.setProfilePhoto(dataUrl) : await api.resetProfilePhoto();
+    setLeaderProfile((prev) => ({ ...prev, ...saved }));
+  };
+
+  const handleSaveWardVillages = async (villages: Record<string, string>) => {
+    const saved = await api.updateSettings({ wardVillages: villages });
+    setWardVillages(saved.wardVillages || {});
   };
 
   return (
@@ -431,6 +458,9 @@ export default function App() {
             leaderProfile={leaderProfile}
             manifestoItems={manifestoItems}
             onUpdateLeaderProfile={handleUpdateLeaderProfile}
+            onSetLeaderPhoto={handleSetLeaderPhoto}
+            wardVillages={wardVillages}
+            onSaveWardVillages={handleSaveWardVillages}
             onUpdateProblemStatus={handleUpdateStatus}
             onDeleteProblem={handleDeleteProblem}
             onUpdateManifestoItem={handleUpdateManifestoItem}

@@ -12,7 +12,7 @@ import {
   ManifestoMilestone
 } from '../types';
 import { MANIFESTO_CATEGORIES_CONFIG, INITIAL_MANIFESTO_ITEMS } from '../data/manifestoData';
-import { LEADER_PERMANENT_PHOTO_URL } from '../data/mockData';
+import { LEADER_PERMANENT_PHOTO_URL, INITIAL_AREAS } from '../data/mockData';
 import { 
   X, 
   CheckCircle2, 
@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import { sanitizeString, sanitizeForCsv } from '../services/security';
 import { api, ApiError, DbStatusInfo } from '../services/api';
+import { prepareProfilePhoto, PhotoPrepError } from '../services/photo';
 
 interface AdminSectionModalProps {
   isOpen: boolean;
@@ -56,7 +57,10 @@ interface AdminSectionModalProps {
   categories: CategoryStat[];
   leaderProfile: LeaderProfile;
   manifestoItems: ManifestoItem[];
-  onUpdateLeaderProfile: (updatedProfile: LeaderProfile) => void;
+  onUpdateLeaderProfile: (updatedProfile: LeaderProfile) => Promise<void>;
+  onSetLeaderPhoto: (dataUrl: string | null) => Promise<void>;
+  wardVillages: Record<string, string>;
+  onSaveWardVillages: (villages: Record<string, string>) => Promise<void>;
   onUpdateProblemStatus: (problemId: string, newStatus: ProblemStatus, noteText: string, officerName: string) => void;
   onDeleteProblem: (problemId: string) => void;
   onUpdateManifestoItem: (updatedItem: ManifestoItem) => void;
@@ -76,6 +80,9 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
   leaderProfile,
   manifestoItems,
   onUpdateLeaderProfile,
+  onSetLeaderPhoto,
+  wardVillages,
+  onSaveWardVillages,
   onUpdateProblemStatus,
   onDeleteProblem,
   onUpdateManifestoItem,
@@ -152,10 +159,18 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
   const [editPromise, setEditPromise] = useState(leaderProfile.promise);
   const [editMainSlogan, setEditMainSlogan] = useState(leaderProfile.mainSlogan);
   const [editSubSlogan, setEditSubSlogan] = useState(leaderProfile.subSlogan);
+  const [editAnnouncement, setEditAnnouncement] = useState(leaderProfile.heroAnnouncement || '');
   const [editPhone, setEditPhone] = useState(leaderProfile.phone);
   const [editEmail, setEditEmail] = useState(leaderProfile.email);
   const [editAddress, setEditAddress] = useState(leaderProfile.officeAddress);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingPhoto, setIsSavingPhoto] = useState(false);
+  const [photoMsg, setPhotoMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [editVillages, setEditVillages] = useState<Record<string, string>>(wardVillages);
+  const [isSavingVillages, setIsSavingVillages] = useState(false);
+  const [villagesMsg, setVillagesMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Turso Database State
   const [dbStatus, setDbStatus] = useState<DbStatusInfo | null>(null);
@@ -210,7 +225,12 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
     setEditPhone(leaderProfile.phone);
     setEditEmail(leaderProfile.email);
     setEditAddress(leaderProfile.officeAddress);
+    setEditAnnouncement(leaderProfile.heroAnnouncement || '');
   }, [leaderProfile]);
+
+  useEffect(() => {
+    setEditVillages(wardVillages);
+  }, [wardVillages]);
 
   if (!isOpen) return null;
 
@@ -244,32 +264,102 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
     setPinInput('');
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const errText = (err: unknown) =>
+    err instanceof ApiError
+      ? err.message
+      : language === 'bn'
+      ? 'ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।'
+      : 'Network problem. Please try again.';
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanName = sanitizeString(editName, 80);
-    const cleanDesignation = sanitizeString(editDesignation, 120);
-    const cleanPromise = sanitizeString(editPromise, 150);
-    const cleanMainSlogan = sanitizeString(editMainSlogan, 150);
-    const cleanSubSlogan = sanitizeString(editSubSlogan, 150);
-    const cleanPhone = sanitizeString(editPhone, 30);
-    const cleanEmail = sanitizeString(editEmail, 80);
-    const cleanAddress = sanitizeString(editAddress, 200);
+    if (isSavingProfile) return;
+    setProfileError('');
+    setProfileSuccessMsg(false);
+    setIsSavingProfile(true);
+    try {
+      // ছবি এখানে বদলায় না; আলাদা বাটনে বদলায়
+      await onUpdateLeaderProfile({
+        ...leaderProfile,
+        name: sanitizeString(editName, 80),
+        designation: sanitizeString(editDesignation, 120),
+        promise: sanitizeString(editPromise, 150),
+        mainSlogan: sanitizeString(editMainSlogan, 150),
+        subSlogan: sanitizeString(editSubSlogan, 150),
+        heroAnnouncement: sanitizeString(editAnnouncement, 200),
+        phone: sanitizeString(editPhone, 30),
+        email: sanitizeString(editEmail, 80),
+        officeAddress: sanitizeString(editAddress, 200),
+      });
+      setProfileSuccessMsg(true);
+      setTimeout(() => setProfileSuccessMsg(false), 4000);
+    } catch (err) {
+      setProfileError(errText(err));
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
-    onUpdateLeaderProfile({
-      ...leaderProfile,
-      name: cleanName,
-      designation: cleanDesignation,
-      promise: cleanPromise,
-      mainSlogan: cleanMainSlogan,
-      subSlogan: cleanSubSlogan,
-      phone: cleanPhone,
-      email: cleanEmail,
-      officeAddress: cleanAddress,
-      profileImage: LEADER_PERMANENT_PHOTO_URL,
-    });
+  const handlePhotoPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // একই ছবি আবার বাছাই করা যাবে
+    if (!file || isSavingPhoto) return;
+    setPhotoMsg(null);
+    setIsSavingPhoto(true);
+    try {
+      const dataUrl = await prepareProfilePhoto(file);
+      await onSetLeaderPhoto(dataUrl);
+      setPhotoMsg({ ok: true, text: 'ছবি বদলানো হয়েছে।' });
+    } catch (err) {
+      if (err instanceof PhotoPrepError) {
+        setPhotoMsg({
+          ok: false,
+          text:
+            err.code === 'invalid_type'
+              ? 'শুধু JPG, PNG বা WEBP ছবি দিন।'
+              : err.code === 'too_large'
+              ? 'ছবিটি অনেক বড়। ছোট একটি ছবি বাছুন।'
+              : 'ছবিটি খোলা যায়নি। অন্য ছবি চেষ্টা করুন।',
+        });
+      } else {
+        setPhotoMsg({ ok: false, text: errText(err) });
+      }
+    } finally {
+      setIsSavingPhoto(false);
+    }
+  };
 
-    setProfileSuccessMsg(true);
-    setTimeout(() => setProfileSuccessMsg(false), 3000);
+  const handlePhotoReset = async () => {
+    if (isSavingPhoto) return;
+    setPhotoMsg(null);
+    setIsSavingPhoto(true);
+    try {
+      await onSetLeaderPhoto(null);
+      setPhotoMsg({ ok: true, text: 'আগের মূল ছবিতে ফেরানো হয়েছে।' });
+    } catch (err) {
+      setPhotoMsg({ ok: false, text: errText(err) });
+    } finally {
+      setIsSavingPhoto(false);
+    }
+  };
+
+  const handleSaveVillages = async () => {
+    if (isSavingVillages) return;
+    setVillagesMsg(null);
+    setIsSavingVillages(true);
+    try {
+      const cleaned: Record<string, string> = {};
+      for (const w of INITIAL_AREAS) {
+        const v = sanitizeString(editVillages[w.wardNumber] || '', 80);
+        if (v) cleaned[w.wardNumber] = v;
+      }
+      await onSaveWardVillages(cleaned);
+      setVillagesMsg({ ok: true, text: 'ওয়ার্ডের গ্রামের নাম সংরক্ষিত হয়েছে।' });
+    } catch (err) {
+      setVillagesMsg({ ok: false, text: errText(err) });
+    } finally {
+      setIsSavingVillages(false);
+    }
   };
 
 
@@ -1889,6 +1979,12 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                   </div>
                 )}
 
+                {profileError && (
+                  <div role="alert" className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-bold max-w-3xl">
+                    {profileError}
+                  </div>
+                )}
+
                 <form onSubmit={handleSaveProfile} className="space-y-6 max-w-3xl">
                   
                   {/* 1. Slogans and Announcements */}
@@ -1925,6 +2021,20 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                         className="w-full px-3.5 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
                       />
                     </div>
+                    <div>
+                      <label className="block text-xs font-bold text-neutral-700 mb-1" htmlFor="edit-announcement">
+                        {language === 'bn' ? 'জনবার্তা (নামের নিচে ছোট বার্তা, ফাঁকা রাখলে দেখাবে না)' : 'Public message (optional)'}
+                      </label>
+                      <input
+                        id="edit-announcement"
+                        type="text"
+                        maxLength={200}
+                        value={editAnnouncement}
+                        onChange={(e) => setEditAnnouncement(e.target.value)}
+                        placeholder="যেমন: আপনার সমস্যা আমাদের জানান, আমরা পাশে আছি"
+                        className="w-full px-3.5 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                      />
+                    </div>
                   </div>
 
                   {/* 2. Leader Identity */}
@@ -1934,27 +2044,61 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                       <span>{language === 'bn' ? 'জননেতা ও সেবকের পরিচিতি' : 'Leader Representation'}</span>
                     </h4>
 
-                    {/* Permanent Hardcoded Portrait Card */}
-                    <div className="flex items-center gap-4 p-3.5 bg-white rounded-xl border border-neutral-200">
-                      <img
-                        src={LEADER_PERMANENT_PHOTO_URL}
-                        alt={leaderProfile.name}
-                        className="w-16 h-16 rounded-xl object-cover object-top border-2 border-emerald-600 shadow-xs shrink-0"
-                      />
-                      <div className="text-xs">
-                        <div className="flex items-center gap-1.5 font-bold text-neutral-800">
-                          <Lock className="w-3.5 h-3.5 text-amber-600" />
-                          <span>{language === 'bn' ? 'অফিসিয়াল স্থায়ী প্রতিকৃতি' : 'Official Permanent Portrait'}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded font-medium">
-                            {language === 'bn' ? 'স্থায়ী কোডবদ্ধ' : 'Hardcoded & Locked'}
-                          </span>
+                    {/* প্রোফাইল ছবি: অ্যাডমিন বদলাতে পারেন */}
+                    <div className="p-3.5 bg-white rounded-xl border border-neutral-200 space-y-3">
+                      <div className="flex items-center gap-4">
+                        <img
+                          src={leaderProfile.profileImage || LEADER_PERMANENT_PHOTO_URL}
+                          alt={leaderProfile.name}
+                          className="w-20 h-20 rounded-xl object-cover object-top border-2 border-emerald-600 shadow-xs shrink-0"
+                        />
+                        <div className="text-xs">
+                          <div className="font-bold text-neutral-800 text-sm">
+                            {language === 'bn' ? 'প্রোফাইল ছবি' : 'Profile Photo'}
+                          </div>
+                          <p className="text-xs text-neutral-500 mt-0.5 leading-relaxed">
+                            {language === 'bn'
+                              ? 'ফোন বা কম্পিউটার থেকে ছবি বাছুন। ছবি নিজে থেকেই ছোট হয়ে যাবে। মুখ উপরের দিকে থাকা সোজা ছবি ভালো দেখায়।'
+                              : 'Pick a photo from your device. It is resized automatically.'}
+                          </p>
                         </div>
-                        <p className="text-[11px] text-neutral-500 mt-0.5">
-                          {language === 'bn' 
-                            ? 'মোঃ আনোয়ার হোসেন ভূঁইয়ার এই প্রতিকৃতিটি অ্যাপ্লিকেশনের ভেতরে স্থায়ীভাবে সংরক্ষিত রয়েছে।' 
-                            : 'This portrait of Md. Anwar Hossain Bhuiyan is permanently hardcoded inside the application.'}
-                        </p>
                       </div>
+                      <div className="flex flex-wrap gap-2">
+                        <label
+                          className={`inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-bold text-white shadow-sm cursor-pointer ${
+                            isSavingPhoto ? 'bg-neutral-400 pointer-events-none' : 'bg-emerald-700 hover:bg-emerald-800'
+                          }`}
+                        >
+                          {isSavingPhoto ? 'অপেক্ষা করুন…' : language === 'bn' ? 'নতুন ছবি বাছুন' : 'Choose new photo'}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={handlePhotoPicked}
+                            disabled={isSavingPhoto}
+                            className="sr-only"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handlePhotoReset}
+                          disabled={isSavingPhoto}
+                          className="px-4 py-2.5 rounded-xl text-xs font-bold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 cursor-pointer disabled:opacity-50"
+                        >
+                          {language === 'bn' ? 'মূল ছবিতে ফিরুন' : 'Restore default photo'}
+                        </button>
+                      </div>
+                      {photoMsg && (
+                        <div
+                          role="status"
+                          className={`text-xs font-bold px-3 py-2 rounded-lg border ${
+                            photoMsg.ok
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                              : 'bg-red-50 border-red-200 text-red-700'
+                          }`}
+                        >
+                          {photoMsg.text}
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2057,12 +2201,68 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                   <div className="flex justify-end">
                     <button
                       type="submit"
-                      className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+                      disabled={isSavingProfile}
+                      className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 disabled:bg-neutral-400 text-white rounded-xl text-sm font-bold shadow-sm transition-all cursor-pointer"
                     >
-                      {language === 'bn' ? 'পরিবর্তনসমূহ সংরক্ষণ করুন' : 'Save Changes'}
+                      {isSavingProfile
+                        ? (language === 'bn' ? 'সংরক্ষণ হচ্ছে…' : 'Saving…')
+                        : (language === 'bn' ? 'পরিবর্তনসমূহ সংরক্ষণ করুন' : 'Save Changes')}
                     </button>
                   </div>
                 </form>
+
+                {/* ওয়ার্ডের গ্রামের নাম */}
+                <div className="bg-neutral-50 p-5 rounded-2xl border border-neutral-200 space-y-4 max-w-3xl">
+                  <h4 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-emerald-700" />
+                    <span>{language === 'bn' ? 'ওয়ার্ড অনুযায়ী গ্রামের নাম' : 'Villages by Ward'}</span>
+                  </h4>
+                  <p className="text-xs text-neutral-500 leading-relaxed">
+                    {language === 'bn'
+                      ? 'প্রতিটি ওয়ার্ডে কোন কোন গ্রাম পড়ে লিখুন (কমা দিয়ে আলাদা করুন)। অভিযোগের ফর্ম ও তালিকায় ওয়ার্ডের পাশে এগুলো দেখা যাবে। ফাঁকা রাখলে শুধু ওয়ার্ড নম্বর দেখাবে।'
+                      : 'List the villages in each ward, separated by commas. They appear next to the ward in the form and lists.'}
+                  </p>
+                  <div className="space-y-3">
+                    {INITIAL_AREAS.map((w) => (
+                      <div key={w.wardNumber}>
+                        <label className="block text-xs font-bold text-neutral-700 mb-1" htmlFor={`village-${w.wardNumber}`}>
+                          {language === 'bn' ? w.wardNameBn : w.wardNameEn}
+                        </label>
+                        <input
+                          id={`village-${w.wardNumber}`}
+                          type="text"
+                          maxLength={80}
+                          value={editVillages[w.wardNumber] || ''}
+                          onChange={(e) => setEditVillages((prev) => ({ ...prev, [w.wardNumber]: e.target.value }))}
+                          placeholder={language === 'bn' ? 'যেমন: উত্তর ধামতী, দক্ষিণ পাড়া' : 'e.g. North Dhamti, South Para'}
+                          className="w-full px-3.5 py-2.5 text-sm bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {villagesMsg && (
+                    <div
+                      role="status"
+                      className={`text-xs font-bold px-3 py-2 rounded-lg border ${
+                        villagesMsg.ok
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                          : 'bg-red-50 border-red-200 text-red-700'
+                      }`}
+                    >
+                      {villagesMsg.text}
+                    </div>
+                  )}
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveVillages}
+                      disabled={isSavingVillages}
+                      className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 disabled:bg-neutral-400 text-white rounded-xl text-sm font-bold shadow-sm transition-all cursor-pointer"
+                    >
+                      {isSavingVillages ? 'সংরক্ষণ হচ্ছে…' : language === 'bn' ? 'গ্রামের নাম সংরক্ষণ করুন' : 'Save villages'}
+                    </button>
+                  </div>
+                </div>
 
                 {/* Turso Database Information & Architecture Card */}
                 <div className="bg-gradient-to-br from-neutral-900 to-neutral-950 text-white p-5 rounded-2xl border border-neutral-800 shadow-md space-y-4 max-w-3xl">

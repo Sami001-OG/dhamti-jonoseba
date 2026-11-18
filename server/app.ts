@@ -22,6 +22,10 @@ import {
   resetManifestoItems,
   getLeaderProfile,
   updateLeaderProfile,
+  getLeaderPhotoDataUrl,
+  setLeaderPhoto,
+  getSetting,
+  setSetting,
   getDatabaseStatus,
   isDbPersistent,
 } from './db.js';
@@ -224,9 +228,6 @@ function parseProfile(body: any): LeaderProfile | null {
   if (!body || typeof body !== 'object') return null;
   const name = cleanText(body.name, 80);
   if (!name) return null;
-  const image = typeof body.profileImage === 'string' && /^(\/|https:\/\/)/.test(body.profileImage)
-    ? body.profileImage.slice(0, 300)
-    : '/leader.jpg';
   return {
     name,
     designation: cleanText(body.designation, 120),
@@ -234,11 +235,55 @@ function parseProfile(body: any): LeaderProfile | null {
     mainSlogan: cleanText(body.mainSlogan, 150),
     subSlogan: cleanText(body.subSlogan, 150),
     heroAnnouncement: cleanText(body.heroAnnouncement, 200),
-    profileImage: image,
+    profileImage: '/leader.jpg', // ছবি আলাদা পথে বদলায় (PUT /api/profile/photo)
     phone: cleanPhone(body.phone) || '',
     email: cleanText(body.email, 80),
     officeAddress: cleanText(body.officeAddress, 200),
   };
+}
+
+const MAX_PHOTO_BYTES = 400 * 1024;
+const PHOTO_DATA_URL = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
+
+/** ছবির data URL যাচাই: ধরন, আকার ও ফাইলের আসল শুরুর বাইট (magic bytes) মেলে কিনা */
+function parsePhotoDataUrl(input: unknown): string | null {
+  if (typeof input !== 'string' || input.length > Math.ceil(MAX_PHOTO_BYTES * 1.4) + 64) return null;
+  const m = PHOTO_DATA_URL.exec(input);
+  if (!m) return null;
+  const buf = Buffer.from(m[2], 'base64');
+  if (buf.length < 12 || buf.length > MAX_PHOTO_BYTES) return null;
+  const isJpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+  const isPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+  const isWebp = buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP';
+  const kind = m[1];
+  if ((kind === 'jpeg' && !isJpeg) || (kind === 'png' && !isPng) || (kind === 'webp' && !isWebp)) return null;
+  return input;
+}
+
+const WARD_VILLAGES_KEY = 'wardVillages';
+
+function parseWardVillages(body: any): Record<string, string> | null {
+  if (!body || typeof body !== 'object' || typeof body.wardVillages !== 'object' || body.wardVillages === null) return null;
+  const out: Record<string, string> = {};
+  for (const id of WARD_IDS) {
+    const v = cleanText((body.wardVillages as Record<string, unknown>)[id], 80);
+    if (v) out[id] = v;
+  }
+  return out;
+}
+
+async function readWardVillages(): Promise<Record<string, string>> {
+  try {
+    const raw = await getSetting(WARD_VILLAGES_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const out: Record<string, string> = {};
+    for (const id of WARD_IDS) {
+      if (typeof parsed?.[id] === 'string') out[id] = parsed[id];
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 export function createApp() {
@@ -246,7 +291,13 @@ export function createApp() {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(securityHeaders);
-  app.use(express.json({ limit: '100kb' }));
+  // সাধারণ রিকোয়েস্ট ১০০KB; শুধু লগইন-করা অ্যাডমিনের ছবি আপলোডে বেশি
+  const smallJson = express.json({ limit: '100kb' });
+  const photoJson = express.json({ limit: '700kb' });
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path === '/api/profile/photo' && req.method === 'PUT' && isAdminRequest(req)) return photoJson(req, res, next);
+    return smallJson(req, res, next);
+  });
   app.use('/api', sameOriginOnly);
 
   // ডেটাবেস একবারই প্রস্তুত করা হয় (serverless-এও কাজ করে)
@@ -392,6 +443,37 @@ export function createApp() {
     }
   });
 
+  // অ্যাডমিনের আপলোড করা ছবি (না থাকলে ডিফল্ট ছবিতে পাঠাই)
+  app.get('/api/profile/photo', async (req: Request, res: Response) => {
+    try {
+      const dataUrl = await getLeaderPhotoDataUrl();
+      const m = dataUrl ? PHOTO_DATA_URL.exec(dataUrl) : null;
+      if (!dataUrl || !m) {
+        res.statusCode = 302;
+        res.setHeader('Location', '/leader.jpg');
+        res.end();
+        return;
+      }
+      res.setHeader('Content-Type', `image/${m[1]}`);
+      // URL-এ ?v=... থাকে, ছবি বদলালে URL বদলায়, তাই লম্বা ক্যাশ নিরাপদ
+      res.setHeader('Cache-Control', req.query?.v ? 'public, max-age=31536000, immutable' : 'no-cache');
+      res.end(Buffer.from(m[2], 'base64'));
+    } catch (err) {
+      console.error('Failed to serve leader photo:', err);
+      res.status(500).json({ error: 'ছবি আনা যায়নি।' });
+    }
+  });
+
+  // সাইটের পাবলিক সেটিংস (এখন: ওয়ার্ডের গ্রামের নাম)
+  app.get('/api/settings', async (_req: Request, res: Response) => {
+    try {
+      res.json({ wardVillages: await readWardVillages() });
+    } catch (err) {
+      console.error('Failed to get settings:', err);
+      res.status(500).json({ error: 'সেটিংস আনা যায়নি।' });
+    }
+  });
+
   // ==========================================
   // শুধু অ্যাডমিন
   // ==========================================
@@ -505,6 +587,40 @@ export function createApp() {
     } catch (err) {
       console.error('Failed to update leader profile:', err);
       res.status(500).json({ error: 'হালনাগাদ করা যায়নি।' });
+    }
+  });
+
+  app.put('/api/profile/photo', requireAdmin, needsPersistentDb, async (req: Request, res: Response) => {
+    try {
+      const dataUrl = parsePhotoDataUrl(req.body?.image);
+      if (!dataUrl) {
+        return res.status(400).json({ error: 'ছবিটি সঠিক নয়। JPG, PNG বা WEBP ছবি দিন (সর্বোচ্চ ৪০০ কিলোবাইট)।' });
+      }
+      res.json(await setLeaderPhoto(dataUrl));
+    } catch (err) {
+      console.error('Failed to save leader photo:', err);
+      res.status(500).json({ error: 'ছবি সংরক্ষণ করা যায়নি।' });
+    }
+  });
+
+  app.delete('/api/profile/photo', requireAdmin, needsPersistentDb, async (_req: Request, res: Response) => {
+    try {
+      res.json(await setLeaderPhoto(null));
+    } catch (err) {
+      console.error('Failed to reset leader photo:', err);
+      res.status(500).json({ error: 'ছবি বদলানো যায়নি।' });
+    }
+  });
+
+  app.put('/api/settings', requireAdmin, needsPersistentDb, async (req: Request, res: Response) => {
+    try {
+      const villages = parseWardVillages(req.body);
+      if (!villages) return res.status(400).json({ error: 'সেটিংসের তথ্য সঠিক নয়।' });
+      await setSetting(WARD_VILLAGES_KEY, JSON.stringify(villages));
+      res.json({ wardVillages: villages });
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      res.status(500).json({ error: 'সংরক্ষণ করা যায়নি।' });
     }
   });
 
