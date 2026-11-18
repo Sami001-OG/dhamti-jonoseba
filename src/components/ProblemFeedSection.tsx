@@ -184,7 +184,7 @@ export const ProblemFeedSection: React.FC<ProblemFeedSectionProps> = ({
           >
             <MessageSquare className="w-3.5 h-3.5" />
             <span>{language === 'bn' ? 'সকল' : 'All'}</span>
-            <span className="text-[11px] opacity-80">({problems.length})</span>
+            <span className="text-xs opacity-80">({problems.length})</span>
           </button>
 
           <button
@@ -198,7 +198,7 @@ export const ProblemFeedSection: React.FC<ProblemFeedSectionProps> = ({
           >
             <AlertTriangle className="w-3.5 h-3.5" />
             <span>{language === 'bn' ? 'অভিযোগ' : 'Complaints'}</span>
-            <span className="text-[11px] opacity-80">({complaintsCount})</span>
+            <span className="text-xs opacity-80">({complaintsCount})</span>
           </button>
 
           <button
@@ -212,7 +212,7 @@ export const ProblemFeedSection: React.FC<ProblemFeedSectionProps> = ({
           >
             <Lightbulb className="w-3.5 h-3.5 text-amber-300" />
             <span>{language === 'bn' ? 'উপদেশ' : 'Advice'}</span>
-            <span className="text-[11px] opacity-80">({adviceCount})</span>
+            <span className="text-xs opacity-80">({adviceCount})</span>
           </button>
         </div>
 
@@ -452,7 +452,7 @@ export const ProblemFeedSection: React.FC<ProblemFeedSectionProps> = ({
                         )}
 
                         {item.urgency === 'critical' && (
-                          <span className="text-[11px] font-bold text-red-700 ml-1">
+                          <span className="text-xs font-bold text-red-700 ml-1">
                             ({getUrgencyText(item.urgency, isAdvice)})
                           </span>
                         )}

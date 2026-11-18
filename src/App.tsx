@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Language, ProblemReport, AreaStat, CategoryStat, ProblemStatus, LeaderProfile, ManifestoItem } from './types';
 import { INITIAL_AREAS, CATEGORIES, INITIAL_PROBLEMS, DEFAULT_PROFILE, LEADER_PERMANENT_PHOTO_URL } from './data/mockData';
 import { INITIAL_MANIFESTO_ITEMS } from './data/manifestoData';
@@ -10,13 +10,19 @@ import { ProblemFeedSection } from './components/ProblemFeedSection';
 import { SubmitProblemModal } from './components/SubmitProblemModal';
 import { TrackProblemModal } from './components/TrackProblemModal';
 import { ProblemDetailModal } from './components/ProblemDetailModal';
-import { AdminSectionModal } from './components/AdminSectionModal';
+import { MobileActionBar } from './components/MobileActionBar';
+
+// অ্যাডমিন প্যানেল ভারী (১২০ KB+); সাধারণ ভিজিটরের ফোনে লোড না করে শুধু খুললে আনা হয়
+const AdminSectionModal = lazy(() =>
+  import('./components/AdminSectionModal').then((m) => ({ default: m.AdminSectionModal }))
+);
 import { Footer } from './components/Footer';
-import { api } from './services/api';
+import { api, ApiError } from './services/api';
 
 const STORAGE_KEY_PROBLEMS = 'dhamti_real_problems_v1';
 const STORAGE_KEY_PROFILE = 'dhamti_leader_profile_v1';
-const STORAGE_KEY_MANIFESTO = 'dhamti_electoral_manifesto_v1';
+const STORAGE_KEY_VILLAGES = 'dhamti_ward_villages_v1';
+const STORAGE_KEY_MANIFESTO = 'dhamti_electoral_manifesto_v2';
 
 export default function App() {
   const [language, setLanguage] = useState<Language>('bn');
@@ -26,7 +32,9 @@ export default function App() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_PROBLEMS);
       if (saved) {
-        return JSON.parse(saved);
+        // আগের সংস্করণের ক্যাশে নাম/ফোন থাকতে পারে; সেগুলো মুছে নিই
+        const cached: ProblemReport[] = JSON.parse(saved);
+        return cached.map((p) => ({ ...p, phone: '', citizenName: 'এলাকাবাসী' }));
       }
     } catch {
       // ignore
@@ -40,20 +48,23 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY_PROFILE);
       if (saved) {
         const parsed = JSON.parse(saved);
-        return {
-          ...parsed,
-          phone: DEFAULT_PROFILE.phone, // Enforce official 01613394074
-          email: DEFAULT_PROFILE.email, // Enforce official Anwarbhuiyan184@gmail.com
-          profileImage: '/leader.jpg',
-        };
+        return { ...DEFAULT_PROFILE, ...parsed };
       }
     } catch {
       // ignore
     }
-    return {
-      ...DEFAULT_PROFILE,
-      profileImage: '/leader.jpg',
-    };
+    return DEFAULT_PROFILE;
+  });
+
+  // ওয়ার্ডের গ্রামের নাম (অ্যাডমিন বদলাতে পারেন): { 'ward-01': 'গ্রাম১, গ্রাম২' }
+  const [wardVillages, setWardVillages] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_VILLAGES);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return {};
   });
 
   // Persistent Electoral Manifesto (updated directly by admin)
@@ -71,6 +82,16 @@ export default function App() {
 
   const [selectedWard, setSelectedWard] = useState<string>('');
 
+  // ছোট বার্তা-বার (সার্ভারে কাজ ব্যর্থ হলে অ্যাডমিন/নাগরিক জানতে পারবেন)
+  const [notice, setNotice] = useState<string>('');
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(''), 6000);
+    return () => clearTimeout(t);
+  }, [notice]);
+  const failMessage = (err: unknown, fallback: string) =>
+    err instanceof ApiError ? err.message : fallback;
+
   // Modals state
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
@@ -82,18 +103,23 @@ export default function App() {
     let isMounted = true;
     async function fetchFromTurso() {
       try {
-        const [dbProblems, dbManifesto, dbProfile] = await Promise.all([
+        const [dbProblems, dbManifesto, dbProfile, dbSettings] = await Promise.all([
           api.getProblems().catch(() => null),
           api.getManifesto().catch(() => null),
           api.getProfile().catch(() => null),
+          api.getSettings().catch(() => null),
         ]);
         if (!isMounted) return;
 
         if (dbProblems && Array.isArray(dbProblems)) {
           setProblems(dbProblems);
         }
-        if (dbManifesto && Array.isArray(dbManifesto) && dbManifesto.length > 0) {
+        // ফাঁকা তালিকাও সত্য (ইশতেহার এখনো প্রকাশিত হয়নি), তাই পুরনো ক্যাশ ঝেড়ে ফেলি
+        if (dbManifesto && Array.isArray(dbManifesto)) {
           setManifestoItems(dbManifesto);
+        }
+        if (dbSettings && dbSettings.wardVillages && typeof dbSettings.wardVillages === 'object') {
+          setWardVillages(dbSettings.wardVillages);
         }
         if (dbProfile && dbProfile.name) {
           setLeaderProfile((prev) => ({
@@ -132,6 +158,14 @@ export default function App() {
     }
   }, [leaderProfile]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_VILLAGES, JSON.stringify(wardVillages));
+    } catch {
+      // storage unavailable
+    }
+  }, [wardVillages]);
+
   // Sync manifesto to localStorage as local cache
   useEffect(() => {
     try {
@@ -151,13 +185,17 @@ export default function App() {
     return INITIAL_AREAS.map((area) => {
       const wardProblems = problems.filter((p) => p.ward === area.wardNumber);
       const resolved = wardProblems.filter((p) => p.status === 'resolved');
+      const villages = (wardVillages[area.wardNumber] || '').trim();
       return {
         ...area,
+        // গ্রামের নাম থাকলে ওয়ার্ডের পাশে বসে: "ওয়ার্ড নং ০১ (গ্রাম১, গ্রাম২)"
+        wardNameBn: villages ? `${area.wardNameBn} (${villages})` : area.wardNameBn,
+        wardNameEn: villages ? `${area.wardNameEn} (${villages})` : area.wardNameEn,
         totalProblems: wardProblems.length,
         resolvedProblems: resolved.length,
       };
     });
-  }, [problems]);
+  }, [problems, wardVillages]);
 
   // Real dynamic category counts
   const computedCategories: CategoryStat[] = useMemo(() => {
@@ -167,14 +205,12 @@ export default function App() {
     }));
   }, [problems]);
 
-  // Add new complaint or advice to Turso DB
-  const handleAddNewProblem = async (newProblem: ProblemReport) => {
-    setProblems((prev) => [newProblem, ...prev]);
-    try {
-      await api.createProblem(newProblem);
-    } catch (err) {
-      console.error('Failed to sync new problem to Turso DB:', err);
-    }
+  // নতুন অভিযোগ/পরামর্শ: আগে সার্ভারে সংরক্ষণ, সফল হলে তবেই পর্দায় ও কোড দেখানো।
+  // ব্যর্থ হলে ত্রুটি ছুঁড়ে দেওয়া হয়, ফর্ম সেটা দেখাবে।
+  const handleAddNewProblem = async (newProblem: ProblemReport): Promise<ProblemReport> => {
+    const created = await api.createProblem(newProblem);
+    setProblems((prev) => [created, ...prev]);
+    return created;
   };
 
   // Upvote problem / advice in Turso DB
@@ -211,19 +247,33 @@ export default function App() {
       await api.upvoteProblem(problemId, delta);
     } catch (err) {
       console.error('Failed to sync upvote to Turso DB:', err);
+      // সার্ভারে না গেলে পর্দার সংখ্যা আগের অবস্থায় ফিরিয়ে দিই
+      setProblems((prev) =>
+        prev.map((item) =>
+          item.id === problemId
+            ? {
+                ...item,
+                upvotes: isUpvoted ? item.upvotes + 1 : Math.max(0, item.upvotes - 1),
+                userUpvoted: Boolean(isUpvoted),
+              }
+            : item
+        )
+      );
+      setNotice(failMessage(err, 'সমর্থন নথিভুক্ত করা যায়নি।'));
     }
   };
 
   // Delete problem / advice from Admin in Turso DB
   const handleDeleteProblem = async (problemId: string) => {
-    setProblems((prev) => prev.filter((p) => p.id !== problemId));
-    if (activeDetailProblem?.id === problemId) {
-      setActiveDetailProblem(null);
-    }
     try {
       await api.deleteProblem(problemId);
+      setProblems((prev) => prev.filter((p) => p.id !== problemId));
+      if (activeDetailProblem?.id === problemId) {
+        setActiveDetailProblem(null);
+      }
     } catch (err) {
       console.error('Failed to delete problem in Turso DB:', err);
+      setNotice(failMessage(err, 'মোছা যায়নি। আবার লগইন করে চেষ্টা করুন।'));
     }
   };
 
@@ -234,96 +284,89 @@ export default function App() {
     noteText: string,
     officerName: string
   ) => {
-    const nowIso = new Date().toISOString();
-
-    setProblems((prev) =>
-      prev.map((item) => {
-        if (item.id === problemId) {
-          const newTimelineEvent = {
-            id: `t-${Date.now()}`,
-            timestamp: nowIso,
-            status: newStatus,
-            noteBn: noteText,
-            noteEn: noteText,
-            author: officerName || leaderProfile.name,
-          };
-
-          return {
-            ...item,
-            status: newStatus,
-            assignedOfficer: officerName || item.assignedOfficer,
-            resolutionNote: newStatus === 'resolved' ? noteText : item.resolutionNote,
-            timeline: [newTimelineEvent, ...item.timeline],
-          };
-        }
-        return item;
-      })
-    );
-
     try {
-      await api.updateProblemStatus(problemId, newStatus, noteText, officerName);
+      const updated = await api.updateProblemStatus(problemId, newStatus, noteText, officerName);
+      setProblems((prev) =>
+        prev.map((item) =>
+          item.id === problemId ? { ...updated, userUpvoted: item.userUpvoted } : item
+        )
+      );
     } catch (err) {
       console.error('Failed to update status in Turso DB:', err);
+      setNotice(failMessage(err, 'অবস্থা বদলানো যায়নি। আবার লগইন করে চেষ্টা করুন।'));
     }
   };
 
   // Manifesto Admin handlers with Turso DB sync
   const handleUpdateManifestoItem = async (updated: ManifestoItem) => {
-    setManifestoItems((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
     try {
-      await api.updateManifestoItem(updated);
+      const saved = await api.updateManifestoItem(updated);
+      setManifestoItems((prev) => prev.map((m) => (m.id === saved.id ? saved : m)));
     } catch (err) {
       console.error('Failed to update manifesto item in Turso DB:', err);
+      setNotice(failMessage(err, 'সংরক্ষণ করা যায়নি। আবার লগইন করে চেষ্টা করুন।'));
     }
   };
 
   const handleAddManifestoItem = async (newItem: ManifestoItem) => {
-    setManifestoItems((prev) => [newItem, ...prev]);
     try {
-      await api.createManifestoItem(newItem);
+      const saved = await api.createManifestoItem(newItem);
+      setManifestoItems((prev) => [saved, ...prev]);
     } catch (err) {
       console.error('Failed to create manifesto item in Turso DB:', err);
+      setNotice(failMessage(err, 'সংরক্ষণ করা যায়নি। আবার লগইন করে চেষ্টা করুন।'));
     }
   };
 
   const handleDeleteManifestoItem = async (itemId: string) => {
-    setManifestoItems((prev) => prev.filter((m) => m.id !== itemId));
     try {
       await api.deleteManifestoItem(itemId);
+      setManifestoItems((prev) => prev.filter((m) => m.id !== itemId));
     } catch (err) {
       console.error('Failed to delete manifesto item in Turso DB:', err);
+      setNotice(failMessage(err, 'মোছা যায়নি। আবার লগইন করে চেষ্টা করুন।'));
     }
   };
 
   const handleDeleteCompletedManifestos = async () => {
-    setManifestoItems((prev) => prev.filter((m) => m.status !== 'completed'));
     try {
       await api.deleteCompletedManifestos();
+      setManifestoItems((prev) => prev.filter((m) => m.status !== 'completed'));
     } catch (err) {
       console.error('Failed to delete completed manifestos in Turso DB:', err);
+      setNotice(failMessage(err, 'মোছা যায়নি। আবার লগইন করে চেষ্টা করুন।'));
     }
   };
 
   const handleResetManifesto = async () => {
-    setManifestoItems(INITIAL_MANIFESTO_ITEMS);
     try {
-      await api.resetManifesto();
+      const items = await api.resetManifesto();
+      setManifestoItems(items);
     } catch (err) {
       console.error('Failed to reset manifesto in Turso DB:', err);
+      setNotice(failMessage(err, 'রিসেট করা যায়নি। আবার লগইন করে চেষ্টা করুন।'));
     }
   };
 
+  // অ্যাডমিন ফর্মের জন্য: ব্যর্থ হলে ত্রুটি ছুঁড়ি, ফর্ম নিজেই কারণ দেখায়
   const handleUpdateLeaderProfile = async (updated: LeaderProfile) => {
-    setLeaderProfile(updated);
-    try {
-      await api.updateProfile(updated);
-    } catch (err) {
-      console.error('Failed to update profile in Turso DB:', err);
-    }
+    const saved = await api.updateProfile(updated);
+    setLeaderProfile((prev) => ({ ...prev, ...saved }));
+  };
+
+  // ছবি বদলানো (dataUrl) বা মুছে আগের ছবিতে ফেরা (null)
+  const handleSetLeaderPhoto = async (dataUrl: string | null) => {
+    const saved = dataUrl ? await api.setProfilePhoto(dataUrl) : await api.resetProfilePhoto();
+    setLeaderProfile((prev) => ({ ...prev, ...saved }));
+  };
+
+  const handleSaveWardVillages = async (villages: Record<string, string>) => {
+    const saved = await api.updateSettings({ wardVillages: villages });
+    setWardVillages(saved.wardVillages || {});
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-neutral-50 text-neutral-900">
+    <div className="min-h-screen flex flex-col bg-neutral-50 text-neutral-900 pb-24 md:pb-0">
       {/* Top Bar Header (Clean Citizen View) */}
       <Header
         language={language}
@@ -349,6 +392,7 @@ export default function App() {
           language={language}
           manifestoItems={manifestoItems}
           onOpenAdmin={() => setIsAdminModalOpen(true)}
+          onOpenReportModal={() => setIsReportModalOpen(true)}
         />
 
         {/* Real Statistics Section */}
@@ -402,23 +446,49 @@ export default function App() {
       />
 
       {/* Complete Dedicated Admin Section Modal */}
-      <AdminSectionModal
-        isOpen={isAdminModalOpen}
-        onClose={() => setIsAdminModalOpen(false)}
+      {isAdminModalOpen && (
+        <Suspense fallback={null}>
+          <AdminSectionModal
+            isOpen={isAdminModalOpen}
+            onClose={() => setIsAdminModalOpen(false)}
+            language={language}
+            problems={problems}
+            areas={computedAreas}
+            categories={computedCategories}
+            leaderProfile={leaderProfile}
+            manifestoItems={manifestoItems}
+            onUpdateLeaderProfile={handleUpdateLeaderProfile}
+            onSetLeaderPhoto={handleSetLeaderPhoto}
+            wardVillages={wardVillages}
+            onSaveWardVillages={handleSaveWardVillages}
+            onUpdateProblemStatus={handleUpdateStatus}
+            onDeleteProblem={handleDeleteProblem}
+            onUpdateManifestoItem={handleUpdateManifestoItem}
+            onAddManifestoItem={handleAddManifestoItem}
+            onDeleteManifestoItem={handleDeleteManifestoItem}
+            onDeleteCompletedManifestos={handleDeleteCompletedManifestos}
+            onResetManifesto={handleResetManifesto}
+          />
+        </Suspense>
+      )}
+
+      {notice && (
+        <div
+          role="alert"
+          className="fixed bottom-4 left-4 right-4 sm:left-auto sm:max-w-md z-[60] bg-red-700 text-white text-base font-semibold px-4 py-3 rounded-2xl shadow-2xl flex items-start gap-3"
+        >
+          <span className="flex-1">{notice}</span>
+          <button type="button" onClick={() => setNotice('')} className="shrink-0 px-2 text-xl leading-none" aria-label="বন্ধ করুন">
+            ×
+          </button>
+        </div>
+      )}
+
+      <MobileActionBar
         language={language}
-        problems={problems}
-        areas={computedAreas}
-        categories={computedCategories}
-        leaderProfile={leaderProfile}
-        manifestoItems={manifestoItems}
-        onUpdateLeaderProfile={handleUpdateLeaderProfile}
-        onUpdateProblemStatus={handleUpdateStatus}
-        onDeleteProblem={handleDeleteProblem}
-        onUpdateManifestoItem={handleUpdateManifestoItem}
-        onAddManifestoItem={handleAddManifestoItem}
-        onDeleteManifestoItem={handleDeleteManifestoItem}
-        onDeleteCompletedManifestos={handleDeleteCompletedManifestos}
-        onResetManifesto={handleResetManifesto}
+        phone={leaderProfile.phone}
+        onOpenReportModal={() => setIsReportModalOpen(true)}
+        onOpenTrackModal={() => setIsTrackModalOpen(true)}
       />
 
       {/* Quiet Footer with Admin access */}

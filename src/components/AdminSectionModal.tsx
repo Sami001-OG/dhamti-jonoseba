@@ -12,7 +12,7 @@ import {
   ManifestoMilestone
 } from '../types';
 import { MANIFESTO_CATEGORIES_CONFIG, INITIAL_MANIFESTO_ITEMS } from '../data/manifestoData';
-import { LEADER_PERMANENT_PHOTO_URL } from '../data/mockData';
+import { LEADER_PERMANENT_PHOTO_URL, INITIAL_AREAS } from '../data/mockData';
 import { 
   X, 
   CheckCircle2, 
@@ -29,7 +29,6 @@ import {
   Mail,
   MapPin,
   Trash2,
-  KeyRound,
   RefreshCw,
   PlusCircle,
   Lightbulb,
@@ -45,16 +44,9 @@ import {
   ChevronLeft,
   Database
 } from 'lucide-react';
-import {
-  verifyAdminPin,
-  checkLockoutStatus,
-  isAdminAuthenticated,
-  revokeAdminSession,
-  updateAdminPin,
-  sanitizeString,
-  sanitizeForCsv
-} from '../services/security';
-import { api, DbStatusInfo } from '../services/api';
+import { sanitizeString, sanitizeForCsv } from '../services/security';
+import { api, ApiError, DbStatusInfo } from '../services/api';
+import { prepareProfilePhoto, PhotoPrepError } from '../services/photo';
 
 interface AdminSectionModalProps {
   isOpen: boolean;
@@ -65,7 +57,10 @@ interface AdminSectionModalProps {
   categories: CategoryStat[];
   leaderProfile: LeaderProfile;
   manifestoItems: ManifestoItem[];
-  onUpdateLeaderProfile: (updatedProfile: LeaderProfile) => void;
+  onUpdateLeaderProfile: (updatedProfile: LeaderProfile) => Promise<void>;
+  onSetLeaderPhoto: (dataUrl: string | null) => Promise<void>;
+  wardVillages: Record<string, string>;
+  onSaveWardVillages: (villages: Record<string, string>) => Promise<void>;
   onUpdateProblemStatus: (problemId: string, newStatus: ProblemStatus, noteText: string, officerName: string) => void;
   onDeleteProblem: (problemId: string) => void;
   onUpdateManifestoItem: (updatedItem: ManifestoItem) => void;
@@ -79,12 +74,15 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
   isOpen,
   onClose,
   language,
-  problems,
+  problems: publicProblems,
   areas,
   categories,
   leaderProfile,
   manifestoItems,
   onUpdateLeaderProfile,
+  onSetLeaderPhoto,
+  wardVillages,
+  onSaveWardVillages,
   onUpdateProblemStatus,
   onDeleteProblem,
   onUpdateManifestoItem,
@@ -93,33 +91,29 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
   onDeleteCompletedManifestos,
   onResetManifesto,
 }) => {
-  // Admin Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return isAdminAuthenticated();
-  });
+  // Admin Authentication State (সার্ভার-সাইড সেশন; ব্রাউজারে কোনো পাসওয়ার্ড/হ্যাশ থাকে না)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authChecking, setAuthChecking] = useState<boolean>(true);
+  const [authConfigured, setAuthConfigured] = useState<boolean>(true);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState<string>('');
   const [isVerifying, setIsVerifying] = useState(false);
-  const [lockoutRemaining, setLockoutRemaining] = useState<number>(() => {
-    return checkLockoutStatus().remainingSeconds;
-  });
-  const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
 
-  // Periodic session & lockout countdown timer
+  // প্যানেল খুললে সার্ভারকে জিজ্ঞেস করি লগইন আছে কিনা
   useEffect(() => {
-    const timer = setInterval(() => {
-      if (isAuthenticated && !isAdminAuthenticated()) {
-        setIsAuthenticated(false);
-      }
-      const status = checkLockoutStatus();
-      if (status.isLocked) {
-        setLockoutRemaining(status.remainingSeconds);
-      } else if (lockoutRemaining > 0) {
-        setLockoutRemaining(0);
-      }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isAuthenticated, lockoutRemaining]);
+    if (!isOpen) return;
+    let alive = true;
+    setAuthChecking(true);
+    api.adminSession().then((res) => {
+      if (!alive) return;
+      setIsAuthenticated(res.authenticated);
+      setAuthConfigured(res.configured);
+      setAuthChecking(false);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isOpen]);
 
   // Active Tab: 'complaints' | 'manifesto' | 'profile_settings'
   const [activeTab, setActiveTab] = useState<'complaints' | 'manifesto' | 'profile_settings'>('complaints');
@@ -161,20 +155,22 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
 
   // Profile Settings Form State
   const [editName, setEditName] = useState(leaderProfile.name);
+  const [editDesignation, setEditDesignation] = useState(leaderProfile.designation);
   const [editPromise, setEditPromise] = useState(leaderProfile.promise);
   const [editMainSlogan, setEditMainSlogan] = useState(leaderProfile.mainSlogan);
   const [editSubSlogan, setEditSubSlogan] = useState(leaderProfile.subSlogan);
+  const [editAnnouncement, setEditAnnouncement] = useState(leaderProfile.heroAnnouncement || '');
   const [editPhone, setEditPhone] = useState(leaderProfile.phone);
   const [editEmail, setEditEmail] = useState(leaderProfile.email);
   const [editAddress, setEditAddress] = useState(leaderProfile.officeAddress);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState(false);
-
-  // PIN Change State
-  const [currentPin, setCurrentPin] = useState('');
-  const [newPin, setNewPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
-  const [pinChangeError, setPinChangeError] = useState('');
-  const [pinSuccessMsg, setPinSuccessMsg] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingPhoto, setIsSavingPhoto] = useState(false);
+  const [photoMsg, setPhotoMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [editVillages, setEditVillages] = useState<Record<string, string>>(wardVillages);
+  const [isSavingVillages, setIsSavingVillages] = useState(false);
+  const [villagesMsg, setVillagesMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Turso Database State
   const [dbStatus, setDbStatus] = useState<DbStatusInfo | null>(null);
@@ -184,6 +180,29 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
       api.getStatus().then(setDbStatus).catch(() => {});
     }
   }, [isOpen, isAuthenticated]);
+
+  // অ্যাডমিন লগইন থাকলে সার্ভার থেকে নাম-ফোনসহ পূর্ণ তালিকা আনি (সাধারণ তালিকায় এগুলো থাকে না)।
+  // সাধারণ তালিকা বদলালে (স্ট্যাটাস/মোছা/নতুন জমা) এটিও নতুন করে আনা হয়।
+  const [adminProblems, setAdminProblems] = useState<ProblemReport[] | null>(null);
+  useEffect(() => {
+    if (!isOpen || !isAuthenticated) {
+      setAdminProblems(null);
+      return;
+    }
+    let alive = true;
+    api
+      .adminGetProblems()
+      .then((list) => {
+        if (alive) setAdminProblems(list);
+      })
+      .catch(() => {
+        // সেশন শেষ হলে সাধারণ তালিকাতেই থাকি
+      });
+    return () => {
+      alive = false;
+    };
+  }, [isOpen, isAuthenticated, publicProblems]);
+  const problems = adminProblems ?? publicProblems;
 
   useEffect(() => {
     if (problems.length > 0 && !selectedProblemId) {
@@ -199,114 +218,150 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
 
   useEffect(() => {
     setEditName(leaderProfile.name);
+    setEditDesignation(leaderProfile.designation);
     setEditPromise(leaderProfile.promise);
     setEditMainSlogan(leaderProfile.mainSlogan);
     setEditSubSlogan(leaderProfile.subSlogan);
     setEditPhone(leaderProfile.phone);
     setEditEmail(leaderProfile.email);
     setEditAddress(leaderProfile.officeAddress);
+    setEditAnnouncement(leaderProfile.heroAnnouncement || '');
   }, [leaderProfile]);
+
+  useEffect(() => {
+    setEditVillages(wardVillages);
+  }, [wardVillages]);
 
   if (!isOpen) return null;
 
-  // Handle Cryptographic PIN Login
+  // সার্ভারে পাসওয়ার্ড দিয়ে লগইন
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (lockoutRemaining > 0 || isVerifying || !pinInput.trim()) return;
+    if (isVerifying || !pinInput) return;
 
     setIsVerifying(true);
     setPinError('');
-
     try {
-      const res = await verifyAdminPin(pinInput);
+      await api.adminLogin(pinInput);
+      setIsAuthenticated(true);
+      setPinInput('');
+    } catch (err) {
+      setPinError(
+        err instanceof ApiError
+          ? err.message
+          : language === 'bn'
+          ? 'ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।'
+          : 'Network problem. Please try again.'
+      );
+    } finally {
       setIsVerifying(false);
-
-      if (res.success) {
-        setIsAuthenticated(true);
-        setPinError('');
-        setPinInput('');
-        setAttemptsRemaining(null);
-      } else {
-        if (res.locked) {
-          setLockoutRemaining(res.remainingSeconds);
-          setPinError(language === 'bn' ? 'অতিরিক্ত ভুল পিন দেওয়ার কারণে ৫ মিনিটের জন্য লক করা হয়েছে।' : 'Too many failed attempts. Locked for 5 minutes.');
-        } else {
-          setAttemptsRemaining(res.remainingAttempts);
-          setPinError(
-            language === 'bn'
-              ? `ভুল পিন কোড! আর ${res.remainingAttempts} বার চেষ্টা করা যাবে।`
-              : `Incorrect PIN! ${res.remainingAttempts} attempts remaining.`
-          );
-        }
-      }
-    } catch {
-      setIsVerifying(false);
-      setPinError(language === 'bn' ? 'যাচাই ব্যর্থ হয়েছে।' : 'Verification failed.');
     }
   };
 
-  const handleLogoutAdmin = () => {
-    revokeAdminSession();
+  const handleLogoutAdmin = async () => {
+    await api.adminLogout();
     setIsAuthenticated(false);
     setPinInput('');
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const errText = (err: unknown) =>
+    err instanceof ApiError
+      ? err.message
+      : language === 'bn'
+      ? 'ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।'
+      : 'Network problem. Please try again.';
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanName = sanitizeString(editName, 80);
-    const cleanPromise = sanitizeString(editPromise, 150);
-    const cleanMainSlogan = sanitizeString(editMainSlogan, 150);
-    const cleanSubSlogan = sanitizeString(editSubSlogan, 150);
-    const cleanPhone = sanitizeString(editPhone, 30);
-    const cleanEmail = sanitizeString(editEmail, 80);
-    const cleanAddress = sanitizeString(editAddress, 200);
-
-    onUpdateLeaderProfile({
-      ...leaderProfile,
-      name: cleanName,
-      promise: cleanPromise,
-      mainSlogan: cleanMainSlogan,
-      subSlogan: cleanSubSlogan,
-      phone: cleanPhone,
-      email: cleanEmail,
-      officeAddress: cleanAddress,
-      profileImage: LEADER_PERMANENT_PHOTO_URL,
-    });
-
-    setProfileSuccessMsg(true);
-    setTimeout(() => setProfileSuccessMsg(false), 3000);
+    if (isSavingProfile) return;
+    setProfileError('');
+    setProfileSuccessMsg(false);
+    setIsSavingProfile(true);
+    try {
+      // ছবি এখানে বদলায় না; আলাদা বাটনে বদলায়
+      await onUpdateLeaderProfile({
+        ...leaderProfile,
+        name: sanitizeString(editName, 80),
+        designation: sanitizeString(editDesignation, 120),
+        promise: sanitizeString(editPromise, 150),
+        mainSlogan: sanitizeString(editMainSlogan, 150),
+        subSlogan: sanitizeString(editSubSlogan, 150),
+        heroAnnouncement: sanitizeString(editAnnouncement, 200),
+        phone: sanitizeString(editPhone, 30),
+        email: sanitizeString(editEmail, 80),
+        officeAddress: sanitizeString(editAddress, 200),
+      });
+      setProfileSuccessMsg(true);
+      setTimeout(() => setProfileSuccessMsg(false), 4000);
+    } catch (err) {
+      setProfileError(errText(err));
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
-  const handleChangePin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPinChangeError('');
-    setPinSuccessMsg(false);
-
-    if (newPin.length < 4) {
-      setPinChangeError(language === 'bn' ? 'নতুন পিন কমপক্ষে ৪ সংখ্যার হতে হবে।' : 'New PIN must be at least 4 digits.');
-      return;
-    }
-
-    if (newPin !== confirmPin) {
-      setPinChangeError(language === 'bn' ? 'নতুন পিন ও কনফার্ম পিন মেলেনি।' : 'PIN confirmation does not match.');
-      return;
-    }
-
-    const res = await updateAdminPin(currentPin, newPin);
-    if (res.success) {
-      setCurrentPin('');
-      setNewPin('');
-      setConfirmPin('');
-      setPinSuccessMsg(true);
-      setTimeout(() => setPinSuccessMsg(false), 4000);
-    } else {
-      if (res.error === 'invalid_current_pin') {
-        setPinChangeError(language === 'bn' ? 'বর্তমান পিনটি সঠিক নয়।' : 'Incorrect current PIN.');
+  const handlePhotoPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // একই ছবি আবার বাছাই করা যাবে
+    if (!file || isSavingPhoto) return;
+    setPhotoMsg(null);
+    setIsSavingPhoto(true);
+    try {
+      const dataUrl = await prepareProfilePhoto(file);
+      await onSetLeaderPhoto(dataUrl);
+      setPhotoMsg({ ok: true, text: 'ছবি বদলানো হয়েছে।' });
+    } catch (err) {
+      if (err instanceof PhotoPrepError) {
+        setPhotoMsg({
+          ok: false,
+          text:
+            err.code === 'invalid_type'
+              ? 'শুধু JPG, PNG বা WEBP ছবি দিন।'
+              : err.code === 'too_large'
+              ? 'ছবিটি অনেক বড়। ছোট একটি ছবি বাছুন।'
+              : 'ছবিটি খোলা যায়নি। অন্য ছবি চেষ্টা করুন।',
+        });
       } else {
-        setPinChangeError(language === 'bn' ? 'পিন আপডেট ব্যর্থ হয়েছে।' : 'PIN update failed.');
+        setPhotoMsg({ ok: false, text: errText(err) });
       }
+    } finally {
+      setIsSavingPhoto(false);
     }
   };
+
+  const handlePhotoReset = async () => {
+    if (isSavingPhoto) return;
+    setPhotoMsg(null);
+    setIsSavingPhoto(true);
+    try {
+      await onSetLeaderPhoto(null);
+      setPhotoMsg({ ok: true, text: 'আগের মূল ছবিতে ফেরানো হয়েছে।' });
+    } catch (err) {
+      setPhotoMsg({ ok: false, text: errText(err) });
+    } finally {
+      setIsSavingPhoto(false);
+    }
+  };
+
+  const handleSaveVillages = async () => {
+    if (isSavingVillages) return;
+    setVillagesMsg(null);
+    setIsSavingVillages(true);
+    try {
+      const cleaned: Record<string, string> = {};
+      for (const w of INITIAL_AREAS) {
+        const v = sanitizeString(editVillages[w.wardNumber] || '', 80);
+        if (v) cleaned[w.wardNumber] = v;
+      }
+      await onSaveWardVillages(cleaned);
+      setVillagesMsg({ ok: true, text: 'ওয়ার্ডের গ্রামের নাম সংরক্ষিত হয়েছে।' });
+    } catch (err) {
+      setVillagesMsg({ ok: false, text: errText(err) });
+    } finally {
+      setIsSavingVillages(false);
+    }
+  };
+
 
   // Filter complaints & advice
   const filteredProblems = problems.filter((p) => {
@@ -568,23 +623,18 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                 </h4>
                 <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">
                   {language === 'bn'
-                    ? 'অননুমোদিত প্রবেশ রোধে এই প্যানেলটি পাসওয়ার্ড দ্বারা সুরক্ষিত। আপনার ৪ থেকে ১৬ সংখ্যার সিকিউরিটি পিন দিন।'
+                    ? 'অননুমোদিত প্রবেশ রোধে এই প্যানেলটি পাসওয়ার্ড দ্বারা সুরক্ষিত। অ্যাডমিন পাসওয়ার্ড দিন।'
                     : 'Encrypted administrative control. Please enter your secure PIN to manage citizen submissions and electoral commitments.'}
                 </p>
               </div>
 
-              {lockoutRemaining > 0 ? (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-xs">
-                  <span className="font-bold block mb-1">
-                    {language === 'bn' ? 'নিরাপত্তা লক সক্রিয়!' : 'Security Lock Active!'}
-                  </span>
-                  <span>
-                    {language === 'bn'
-                      ? `পুনরায় চেষ্টা করতে অপেক্ষা করুন: ${lockoutRemaining} সেকেন্ড`
-                      : `Please wait ${lockoutRemaining}s before retrying`}
-                  </span>
+              {!authChecking && !authConfigured && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-sm font-semibold">
+                  {language === 'bn'
+                    ? 'সার্ভারে অ্যাডমিন পাসওয়ার্ড এখনো সেট করা হয়নি। হোস্টিংয়ে ADMIN_PASSWORD ও SESSION_SECRET দিন।'
+                    : 'Admin password is not configured on the server (ADMIN_PASSWORD / SESSION_SECRET).'}
                 </div>
-              ) : null}
+              )}
 
               {pinError && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-semibold">
@@ -596,24 +646,20 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                 <div>
                   <input
                     type="password"
-                    maxLength={16}
-                    disabled={lockoutRemaining > 0 || isVerifying}
+                    maxLength={100}
+                    autoComplete="current-password"
+                    disabled={isVerifying || authChecking}
                     value={pinInput}
                     onChange={(e) => setPinInput(e.target.value)}
-                    placeholder="••••••"
+                    placeholder={language === 'bn' ? 'পাসওয়ার্ড' : 'Password'}
                     autoFocus
-                    className="w-full text-center tracking-[0.5em] text-2xl py-3 px-4 bg-neutral-50 border-2 border-neutral-300 rounded-2xl focus:outline-none focus:border-emerald-600 focus:bg-white font-mono disabled:opacity-50"
+                    className="w-full text-center text-lg py-3 px-4 bg-neutral-50 border-2 border-neutral-300 rounded-2xl focus:outline-none focus:border-emerald-600 focus:bg-white disabled:opacity-50"
                   />
-                  {attemptsRemaining !== null && attemptsRemaining > 0 && (
-                    <span className="text-[11px] text-amber-600 font-semibold block mt-1">
-                      {language === 'bn' ? `অবশিষ্ট প্রচেষ্টা: ${attemptsRemaining} বার` : `Remaining attempts: ${attemptsRemaining}`}
-                    </span>
-                  )}
                 </div>
 
                 <button
                   type="submit"
-                  disabled={lockoutRemaining > 0 || isVerifying || !pinInput.trim()}
+                  disabled={isVerifying || authChecking || !pinInput}
                   className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Unlock className="w-4 h-4" />
@@ -622,7 +668,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
 
                 <div className="pt-2 text-[11px] text-neutral-400 flex items-center justify-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{language === 'bn' ? 'SHA-256 এনক্রিপ্টেড ও সুরক্ষিত ব্রুট-ফোর্স প্রটেকশন' : 'SHA-256 Encrypted & Anti-Brute Force Protected'}</span>
+                  <span>{language === 'bn' ? 'সার্ভারে যাচাই ও ভুল চেষ্টার সীমা সুরক্ষিত' : 'Verified on the server with attempt limits'}</span>
                 </div>
               </form>
             </div>
@@ -1933,6 +1979,12 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                   </div>
                 )}
 
+                {profileError && (
+                  <div role="alert" className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-bold max-w-3xl">
+                    {profileError}
+                  </div>
+                )}
+
                 <form onSubmit={handleSaveProfile} className="space-y-6 max-w-3xl">
                   
                   {/* 1. Slogans and Announcements */}
@@ -1969,6 +2021,20 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                         className="w-full px-3.5 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
                       />
                     </div>
+                    <div>
+                      <label className="block text-xs font-bold text-neutral-700 mb-1" htmlFor="edit-announcement">
+                        {language === 'bn' ? 'জনবার্তা (নামের নিচে ছোট বার্তা, ফাঁকা রাখলে দেখাবে না)' : 'Public message (optional)'}
+                      </label>
+                      <input
+                        id="edit-announcement"
+                        type="text"
+                        maxLength={200}
+                        value={editAnnouncement}
+                        onChange={(e) => setEditAnnouncement(e.target.value)}
+                        placeholder="যেমন: আপনার সমস্যা আমাদের জানান, আমরা পাশে আছি"
+                        className="w-full px-3.5 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                      />
+                    </div>
                   </div>
 
                   {/* 2. Leader Identity */}
@@ -1978,27 +2044,61 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                       <span>{language === 'bn' ? 'জননেতা ও সেবকের পরিচিতি' : 'Leader Representation'}</span>
                     </h4>
 
-                    {/* Permanent Hardcoded Portrait Card */}
-                    <div className="flex items-center gap-4 p-3.5 bg-white rounded-xl border border-neutral-200">
-                      <img
-                        src={LEADER_PERMANENT_PHOTO_URL}
-                        alt={leaderProfile.name}
-                        className="w-16 h-16 rounded-xl object-cover object-top border-2 border-emerald-600 shadow-xs shrink-0"
-                      />
-                      <div className="text-xs">
-                        <div className="flex items-center gap-1.5 font-bold text-neutral-800">
-                          <Lock className="w-3.5 h-3.5 text-amber-600" />
-                          <span>{language === 'bn' ? 'অফিসিয়াল স্থায়ী প্রতিকৃতি' : 'Official Permanent Portrait'}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded font-medium">
-                            {language === 'bn' ? 'স্থায়ী কোডবদ্ধ' : 'Hardcoded & Locked'}
-                          </span>
+                    {/* প্রোফাইল ছবি: অ্যাডমিন বদলাতে পারেন */}
+                    <div className="p-3.5 bg-white rounded-xl border border-neutral-200 space-y-3">
+                      <div className="flex items-center gap-4">
+                        <img
+                          src={leaderProfile.profileImage || LEADER_PERMANENT_PHOTO_URL}
+                          alt={leaderProfile.name}
+                          className="w-20 h-20 rounded-xl object-cover object-top border-2 border-emerald-600 shadow-xs shrink-0"
+                        />
+                        <div className="text-xs">
+                          <div className="font-bold text-neutral-800 text-sm">
+                            {language === 'bn' ? 'প্রোফাইল ছবি' : 'Profile Photo'}
+                          </div>
+                          <p className="text-xs text-neutral-500 mt-0.5 leading-relaxed">
+                            {language === 'bn'
+                              ? 'ফোন বা কম্পিউটার থেকে ছবি বাছুন। ছবি নিজে থেকেই ছোট হয়ে যাবে। মুখ উপরের দিকে থাকা সোজা ছবি ভালো দেখায়।'
+                              : 'Pick a photo from your device. It is resized automatically.'}
+                          </p>
                         </div>
-                        <p className="text-[11px] text-neutral-500 mt-0.5">
-                          {language === 'bn' 
-                            ? 'মোঃ আনোয়ার হোসেন ভূঁইয়ার এই প্রতিকৃতিটি অ্যাপ্লিকেশনের ভেতরে স্থায়ীভাবে সংরক্ষিত রয়েছে।' 
-                            : 'This portrait of Md. Anwar Hossain Bhuiyan is permanently hardcoded inside the application.'}
-                        </p>
                       </div>
+                      <div className="flex flex-wrap gap-2">
+                        <label
+                          className={`inline-flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-bold text-white shadow-sm cursor-pointer ${
+                            isSavingPhoto ? 'bg-neutral-400 pointer-events-none' : 'bg-emerald-700 hover:bg-emerald-800'
+                          }`}
+                        >
+                          {isSavingPhoto ? 'অপেক্ষা করুন…' : language === 'bn' ? 'নতুন ছবি বাছুন' : 'Choose new photo'}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={handlePhotoPicked}
+                            disabled={isSavingPhoto}
+                            className="sr-only"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handlePhotoReset}
+                          disabled={isSavingPhoto}
+                          className="px-4 py-2.5 rounded-xl text-xs font-bold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 cursor-pointer disabled:opacity-50"
+                        >
+                          {language === 'bn' ? 'মূল ছবিতে ফিরুন' : 'Restore default photo'}
+                        </button>
+                      </div>
+                      {photoMsg && (
+                        <div
+                          role="status"
+                          className={`text-xs font-bold px-3 py-2 rounded-lg border ${
+                            photoMsg.ok
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                              : 'bg-red-50 border-red-200 text-red-700'
+                          }`}
+                        >
+                          {photoMsg.text}
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2012,6 +2112,20 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                           placeholder="মোঃ আনোয়ার হোসেন ভূঁইয়া"
+                          className="w-full px-3.5 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-bold text-neutral-700 mb-1">
+                          {language === 'bn' ? 'পদবি / পরিচয়' : 'Designation'}
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editDesignation}
+                          onChange={(e) => setEditDesignation(e.target.value)}
+                          placeholder="চেয়ারম্যান পদপ্রার্থী, ১৩ নং ধামতী ইউনিয়ন পরিষদ"
                           className="w-full px-3.5 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
                         />
                       </div>
@@ -2077,7 +2191,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                           required
                           value={editAddress}
                           onChange={(e) => setEditAddress(e.target.value)}
-                          placeholder="ধামতী ইউনিয়ন জনসেবা কার্যালয়, দেবিদ্বার, কুমিল্লা"
+                          placeholder="জনসেবা কার্যালয়, ১৩ নং ধামতী ইউনিয়ন, দেবিদ্বার, কুমিল্লা"
                           className="w-full px-3.5 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
                         />
                       </div>
@@ -2087,92 +2201,70 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                   <div className="flex justify-end">
                     <button
                       type="submit"
-                      className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+                      disabled={isSavingProfile}
+                      className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 disabled:bg-neutral-400 text-white rounded-xl text-sm font-bold shadow-sm transition-all cursor-pointer"
                     >
-                      {language === 'bn' ? 'পরিবর্তনসমূহ সংরক্ষণ করুন' : 'Save Changes'}
+                      {isSavingProfile
+                        ? (language === 'bn' ? 'সংরক্ষণ হচ্ছে…' : 'Saving…')
+                        : (language === 'bn' ? 'পরিবর্তনসমূহ সংরক্ষণ করুন' : 'Save Changes')}
                     </button>
                   </div>
                 </form>
 
-                {/* 4. Admin Security PIN Change */}
-                <div className="bg-neutral-50 p-5 rounded-2xl border border-neutral-200 max-w-3xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                      <KeyRound className="w-4 h-4 text-emerald-700" />
-                      <span>{language === 'bn' ? 'অ্যাডমিন সিকিউরিটি পিন পরিবর্তন' : 'Change Admin Security PIN'}</span>
-                    </h4>
-                    <span className="text-[11px] text-neutral-400">
-                      {language === 'bn' ? 'SHA-256 সুরক্ষিত' : 'SHA-256 Protected'}
-                    </span>
+                {/* ওয়ার্ডের গ্রামের নাম */}
+                <div className="bg-neutral-50 p-5 rounded-2xl border border-neutral-200 space-y-4 max-w-3xl">
+                  <h4 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-emerald-700" />
+                    <span>{language === 'bn' ? 'ওয়ার্ড অনুযায়ী গ্রামের নাম' : 'Villages by Ward'}</span>
+                  </h4>
+                  <p className="text-xs text-neutral-500 leading-relaxed">
+                    {language === 'bn'
+                      ? 'প্রতিটি ওয়ার্ডে কোন কোন গ্রাম পড়ে লিখুন (কমা দিয়ে আলাদা করুন)। অভিযোগের ফর্ম ও তালিকায় ওয়ার্ডের পাশে এগুলো দেখা যাবে। ফাঁকা রাখলে শুধু ওয়ার্ড নম্বর দেখাবে।'
+                      : 'List the villages in each ward, separated by commas. They appear next to the ward in the form and lists.'}
+                  </p>
+                  <div className="space-y-3">
+                    {INITIAL_AREAS.map((w) => (
+                      <div key={w.wardNumber}>
+                        <label className="block text-xs font-bold text-neutral-700 mb-1" htmlFor={`village-${w.wardNumber}`}>
+                          {language === 'bn' ? w.wardNameBn : w.wardNameEn}
+                        </label>
+                        <input
+                          id={`village-${w.wardNumber}`}
+                          type="text"
+                          maxLength={80}
+                          value={editVillages[w.wardNumber] || ''}
+                          onChange={(e) => setEditVillages((prev) => ({ ...prev, [w.wardNumber]: e.target.value }))}
+                          placeholder={language === 'bn' ? 'যেমন: উত্তর ধামতী, দক্ষিণ পাড়া' : 'e.g. North Dhamti, South Para'}
+                          className="w-full px-3.5 py-2.5 text-sm bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                        />
+                      </div>
+                    ))}
                   </div>
-
-                  {pinSuccessMsg && (
-                    <span className="text-xs text-emerald-700 font-bold block bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
-                      {language === 'bn' ? '✓ পিন সফলভাবে পরিবর্তন করা হয়েছে!' : '✓ PIN successfully updated!'}
-                    </span>
+                  {villagesMsg && (
+                    <div
+                      role="status"
+                      className={`text-xs font-bold px-3 py-2 rounded-lg border ${
+                        villagesMsg.ok
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                          : 'bg-red-50 border-red-200 text-red-700'
+                      }`}
+                    >
+                      {villagesMsg.text}
+                    </div>
                   )}
-
-                  {pinChangeError && (
-                    <span className="text-xs text-red-600 font-semibold block bg-red-50 p-2.5 rounded-xl border border-red-200">
-                      {pinChangeError}
-                    </span>
-                  )}
-
-                  <form onSubmit={handleChangePin} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
-                        {language === 'bn' ? 'বর্তমান পিন' : 'Current PIN'}
-                      </label>
-                      <input
-                        type="password"
-                        maxLength={16}
-                        required
-                        value={currentPin}
-                        onChange={(e) => setCurrentPin(e.target.value)}
-                        placeholder="••••••"
-                        className="w-full px-3 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
-                        {language === 'bn' ? 'নতুন পিন (কমপক্ষে ৪ সংখ্যা)' : 'New PIN (min 4 chars)'}
-                      </label>
-                      <input
-                        type="password"
-                        maxLength={16}
-                        required
-                        value={newPin}
-                        onChange={(e) => setNewPin(e.target.value)}
-                        placeholder="••••••"
-                        className="w-full px-3 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
-                        {language === 'bn' ? 'নতুন পিন নিশ্চিত করুন' : 'Confirm New PIN'}
-                      </label>
-                      <input
-                        type="password"
-                        maxLength={16}
-                        required
-                        value={confirmPin}
-                        onChange={(e) => setConfirmPin(e.target.value)}
-                        placeholder="••••••"
-                        className="w-full px-3 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                      />
-                    </div>
-                    <div className="sm:col-span-3 flex justify-end">
-                      <button
-                        type="submit"
-                        className="px-5 py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
-                      >
-                        {language === 'bn' ? 'পিন আপডেট করুন' : 'Update Security PIN'}
-                      </button>
-                    </div>
-                  </form>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveVillages}
+                      disabled={isSavingVillages}
+                      className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 disabled:bg-neutral-400 text-white rounded-xl text-sm font-bold shadow-sm transition-all cursor-pointer"
+                    >
+                      {isSavingVillages ? 'সংরক্ষণ হচ্ছে…' : language === 'bn' ? 'গ্রামের নাম সংরক্ষণ করুন' : 'Save villages'}
+                    </button>
+                  </div>
                 </div>
 
-                {/* 5. Turso Database Information & Architecture Card */}
+                {/* Turso Database Information & Architecture Card */}
                 <div className="bg-gradient-to-br from-neutral-900 to-neutral-950 text-white p-5 rounded-2xl border border-neutral-800 shadow-md space-y-4 max-w-3xl">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-bold flex items-center gap-2 text-white">

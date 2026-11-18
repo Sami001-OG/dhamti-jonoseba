@@ -1,10 +1,10 @@
-import { ProblemReport, AreaStat, CategoryStat, LeaderProfile } from '../types';
+import type { ProblemReport, AreaStat, CategoryStat, LeaderProfile } from '../types';
 
 export const LEADER_PERMANENT_PHOTO_URL = '/leader.jpg';
 
 export const DEFAULT_PROFILE: LeaderProfile = {
   name: 'মোঃ আনোয়ার হোসেন ভূঁইয়া',
-  designation: 'ধামতী ইউনিয়ন সেবক',
+  designation: 'চেয়ারম্যান পদপ্রার্থী, ১৩ নং ধামতী ইউনিয়ন পরিষদ',
   promise: 'কাজ করতে চাই আপনাদের জন্যে',
   mainSlogan: 'আমাদের ধামতী আমরাই গড়ব',
   subSlogan: 'একসাথে গড়ব আগামীর ধামতী',
@@ -12,91 +12,92 @@ export const DEFAULT_PROFILE: LeaderProfile = {
   profileImage: '/leader.jpg',
   phone: '01613394074',
   email: 'Anwarbhuiyan184@gmail.com',
-  officeAddress: 'ধামতী ইউনিয়ন জনসেবা কার্যালয়, দেবিদ্বার, কুমিল্লা',
+  officeAddress: 'জনসেবা কার্যালয়, ১৩ নং ধামতী ইউনিয়ন, দেবিদ্বার, কুমিল্লা',
 };
 
 // Start with clean authentic areas without artificial mock numbers
+// ওয়ার্ডের গ্রাম/পাড়ার নাম নিশ্চিত হয়ে wardNameBn-এ যোগ করুন (যেমন: 'ওয়ার্ড নং ০১ (…গ্রাম)')
 export const INITIAL_AREAS: AreaStat[] = [
   {
     wardNumber: 'ward-01',
-    wardNameBn: 'ওয়ার্ড নং ০১ (উত্তর ধামতী ও স্কুল রোড)',
-    wardNameEn: 'Ward 01 (North Dhamti & School Rd)',
+    wardNameBn: 'ওয়ার্ড নং ০১',
+    wardNameEn: 'Ward 01',
     totalProblems: 0,
     resolvedProblems: 0,
-    topCategoryBn: 'সড়ক মেরামত ও ড্রেনেজ',
-    topCategoryEn: 'Road Repair & Drainage'
+    topCategoryBn: '',
+    topCategoryEn: ''
   },
   {
     wardNumber: 'ward-02',
-    wardNameBn: 'ওয়ার্ড নং ০২ (ধামতী কলেজ রোড ও মধ্যপাড়া)',
-    wardNameEn: 'Ward 02 (Dhamti College Rd & Madhyapara)',
+    wardNameBn: 'ওয়ার্ড নং ০২',
+    wardNameEn: 'Ward 02',
     totalProblems: 0,
     resolvedProblems: 0,
-    topCategoryBn: 'সড়ক বাতি ও নিরাপত্তা',
-    topCategoryEn: 'Street Lights & Safety'
+    topCategoryBn: '',
+    topCategoryEn: ''
   },
   {
     wardNumber: 'ward-03',
-    wardNameBn: 'ওয়ার্ড নং ০৩ (রাধানগর ও সবুজবাগ)',
-    wardNameEn: 'Ward 03 (Radhanagar & Sabujbagh)',
+    wardNameBn: 'ওয়ার্ড নং ০৩',
+    wardNameEn: 'Ward 03',
     totalProblems: 0,
     resolvedProblems: 0,
-    topCategoryBn: 'বিশুদ্ধ খাবার পানি',
-    topCategoryEn: 'Clean Drinking Water'
+    topCategoryBn: '',
+    topCategoryEn: ''
   },
   {
     wardNumber: 'ward-04',
-    wardNameBn: 'ওয়ার্ড নং ০৪ (ধামতী বাজার ও ইউনিয়ন পরিষদ রোড)',
-    wardNameEn: 'Ward 04 (Dhamti Bazaar & UP Road)',
+    wardNameBn: 'ওয়ার্ড নং ০৪',
+    wardNameEn: 'Ward 04',
     totalProblems: 0,
     resolvedProblems: 0,
-    topCategoryBn: 'ড্রেনেজ ও জলাবদ্ধতা',
-    topCategoryEn: 'Drainage & Waterlogging'
+    topCategoryBn: '',
+    topCategoryEn: ''
   },
   {
     wardNumber: 'ward-05',
-    wardNameBn: 'ওয়ার্ড নং ০৫ (পুরাতন বাজার ও ঘাট এলাকা)',
-    wardNameEn: 'Ward 05 (Old Market & Ghat Area)',
+    wardNameBn: 'ওয়ার্ড নং ০৫',
+    wardNameEn: 'Ward 05',
     totalProblems: 0,
     resolvedProblems: 0,
-    topCategoryBn: 'বর্জ্য অপসারণ ও পরিচ্ছন্নতা',
-    topCategoryEn: 'Waste Management'
+    topCategoryBn: '',
+    topCategoryEn: ''
   },
   {
     wardNumber: 'ward-06',
-    wardNameBn: 'ওয়ার্ড নং ০৬ (কাজী পাড়া ও ইসলামপুর)',
-    wardNameEn: 'Ward 06 (Kazi Para & Islampur)',
+    wardNameBn: 'ওয়ার্ড নং ০৬',
+    wardNameEn: 'Ward 06',
     totalProblems: 0,
     resolvedProblems: 0,
-    topCategoryBn: 'কালভার্ট ও সাঁকো মেরামত',
-    topCategoryEn: 'Culvert & Footbridge Repair'
+    topCategoryBn: '',
+    topCategoryEn: ''
   },
   {
     wardNumber: 'ward-07',
-    wardNameBn: 'ওয়ার্ড নং ০৭ (দক্ষিণ ধামতী ও স্বাস্থ্যকেন্দ্র রোড)',
-    wardNameEn: 'Ward 07 (South Dhamti & Health Center Rd)',
+    wardNameBn: 'ওয়ার্ড নং ০৭',
+    wardNameEn: 'Ward 07',
     totalProblems: 0,
     resolvedProblems: 0,
-    topCategoryBn: 'স্বাস্থ্যসেবা ও পয়ঃনিষ্কাশন',
-    topCategoryEn: 'Healthcare & Sanitation'
+    topCategoryBn: '',
+    topCategoryEn: ''
   },
   {
     wardNumber: 'ward-08',
-    wardNameBn: 'ওয়ার্ড নং ০৮ (নূরপুর ও মাদ্রাসা পাড়া)',
-    wardNameEn: 'Ward 08 (Noorpur & Madrasa Para)',
+    wardNameBn: 'ওয়ার্ড নং ০৮',
+    wardNameEn: 'Ward 08',
     totalProblems: 0,
     resolvedProblems: 0,
-    topCategoryBn: 'বিদ্যুৎ ও ট্রান্সফরমার ত্রুটি',
-    topCategoryEn: 'Power & Transformer Issues'
+    topCategoryBn: '',
+    topCategoryEn: ''
   },
   {
     wardNumber: 'ward-09',
-    wardNameBn: 'ওয়ার্ড নং ০৯ (পূর্বাশা ও বিল্লা বাড়ি এলাকা)',
-    wardNameEn: 'Ward 09 (Purbasha & Billa Bari Area)',
+    wardNameBn: 'ওয়ার্ড নং ০৯',
+    wardNameEn: 'Ward 09',
     totalProblems: 0,
     resolvedProblems: 0,
-    topCategoryBn: 'খেলার মাঠ ও খাল খনন',
-    topCategoryEn: 'Playground & Canal Dredging'
+    topCategoryBn: '',
+    topCategoryEn: ''
   }
 ];
 
@@ -190,7 +191,7 @@ export const UI_STRINGS = {
     viewDetails: 'বিস্তারিত দেখুন',
     submitTitle: 'ধামতীর যেকোনো সমস্যা সরাসরি জানান',
     submitDescription: 'আপনার দেওয়া তথ্য সরাসরি মোঃ আনোয়ার হোসেন ভূঁইয়া ও তাঁর সেবাদলের কাছে পৌঁছাবে।',
-    formFullName: 'আপনার নাম (ঐচ্ছিক)',
+    formFullName: 'আপনার নাম',
     formPhone: 'মোবাইল নম্বর',
     formWard: 'ওয়ার্ড / এলাকা নির্বাচন করুন',
     formCategory: 'সমস্যার ধরণ',
@@ -198,7 +199,7 @@ export const UI_STRINGS = {
     formTitle: 'সমস্যার শিরোনাম',
     formDesc: 'বিস্তারিত বর্ণনা লিখুন',
     formUrgency: 'অগ্রাধিকার মাত্রা',
-    formAnonymous: 'আমার নাম গোপন রাখুন',
+    formAnonymous: 'নাম-নম্বর দিতে চাই না (অ্যাডমিনও দেখবেন না)',
     submitNow: 'অভিযোগ দাখিল করুন',
     cancel: 'বাতিল',
     trackingSuccessTitle: 'আপনার অভিযোগ সফলভাবে গৃহীত হয়েছে!',
@@ -206,9 +207,9 @@ export const UI_STRINGS = {
     copyCode: 'কোড কপি করুন',
     copied: 'কপি হয়েছে!',
     trackModalTitle: 'আপনার অভিযোগের বর্তমান অবস্থা জানুন',
-    trackInputPlaceholder: 'ট্র্যাকিং কোড (যেমন: JNS-2026-8942) অথবা মোবাইল নম্বর দিন',
+    trackInputPlaceholder: 'মোবাইল নম্বর বা ট্র্যাকিং কোড লিখুন',
     searchBtn: 'অনুসন্ধান করুন',
-    searchNotFound: 'এই ট্র্যাকিং কোড বা মোবাইল নম্বরে কোনো অভিযোগ পাওয়া যায়নি।',
+    searchNotFound: 'এই ট্র্যাকিং কোডে কোনো অভিযোগ পাওয়া যায়নি।',
     assignedTo: 'দায়িত্বপ্রাপ্ত কর্মকর্তা / দল',
     officialNotes: 'কর্তৃপক্ষের পদক্ষেপের বিবরণ',
     citizenFeedTitle: 'ধামতীবাসীর সাম্প্রতিক অভিযোগ ও উন্নয়ন অগ্রগতি',
@@ -249,7 +250,7 @@ export const UI_STRINGS = {
     viewDetails: 'View Details',
     submitTitle: 'Submit a Community Problem Directly',
     submitDescription: 'Your report directly reaches Md. Anwar Hossain Bhuiyan and his dedicated civic action team.',
-    formFullName: 'Your Name (Optional)',
+    formFullName: 'Your Name',
     formPhone: 'Phone Number',
     formWard: 'Select Ward / Area',
     formCategory: 'Problem Category',
@@ -257,7 +258,7 @@ export const UI_STRINGS = {
     formTitle: 'Problem Title',
     formDesc: 'Detailed Description',
     formUrgency: 'Urgency Level',
-    formAnonymous: 'Submit Anonymously',
+    formAnonymous: 'Do not share my name/number (even admin)',
     submitNow: 'Submit Grievance',
     cancel: 'Cancel',
     trackingSuccessTitle: 'Your Problem Has Been Successfully Registered!',
@@ -265,9 +266,9 @@ export const UI_STRINGS = {
     copyCode: 'Copy Code',
     copied: 'Copied!',
     trackModalTitle: 'Check Your Report Status',
-    trackInputPlaceholder: 'Enter Tracking Code (e.g. JNS-2026-8942) or Phone Number',
+    trackInputPlaceholder: 'Mobile number or tracking code',
     searchBtn: 'Search',
-    searchNotFound: 'No problem report found matching this tracking code or phone number.',
+    searchNotFound: 'No report found for this tracking code.',
     assignedTo: 'Assigned Action Team / Officer',
     officialNotes: 'Official Action & Progress Details',
     citizenFeedTitle: 'Recent Citizen Reports & Progress Feed in Dhamti',

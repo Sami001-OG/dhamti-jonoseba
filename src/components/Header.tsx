@@ -115,7 +115,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="grid grid-cols-5 gap-0.5 sm:gap-1 text-center">
           <a
             href="#hero-banner"
-            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[11px] sm:text-xs font-semibold text-neutral-700 hover:text-emerald-900 hover:bg-emerald-50/80 transition-colors min-w-0"
+            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-xs sm:text-xs font-semibold text-neutral-700 hover:text-emerald-900 hover:bg-emerald-50/80 transition-colors min-w-0"
           >
             <Compass className="w-4 h-4 text-emerald-700 mb-0.5 shrink-0" />
             <span className="truncate w-full leading-tight">{language === 'bn' ? 'মূলবার্তা' : 'Overview'}</span>
@@ -123,7 +123,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <a
             href="#manifesto"
-            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[11px] sm:text-xs font-bold text-emerald-950 bg-emerald-100/70 border border-emerald-200/80 transition-colors min-w-0"
+            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-xs sm:text-xs font-bold text-emerald-950 bg-emerald-100/70 border border-emerald-200/80 transition-colors min-w-0"
           >
             <FileCheck2 className="w-4 h-4 text-emerald-800 mb-0.5 shrink-0" />
             <span className="truncate w-full leading-tight">{language === 'bn' ? 'ইশতেহার' : 'Manifesto'}</span>
@@ -131,7 +131,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <a
             href="#statistics"
-            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[11px] sm:text-xs font-semibold text-neutral-700 hover:text-emerald-900 hover:bg-emerald-50/80 transition-colors min-w-0"
+            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-xs sm:text-xs font-semibold text-neutral-700 hover:text-emerald-900 hover:bg-emerald-50/80 transition-colors min-w-0"
           >
             <BarChart3 className="w-4 h-4 text-emerald-700 mb-0.5 shrink-0" />
             <span className="truncate w-full leading-tight">{language === 'bn' ? 'পরিসংখ্যান' : 'Stats'}</span>
@@ -139,7 +139,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <a
             href="#problem-feed"
-            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[11px] sm:text-xs font-semibold text-neutral-700 hover:text-emerald-900 hover:bg-emerald-50/80 transition-colors min-w-0"
+            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-xs sm:text-xs font-semibold text-neutral-700 hover:text-emerald-900 hover:bg-emerald-50/80 transition-colors min-w-0"
           >
             <MessageSquareText className="w-4 h-4 text-emerald-700 mb-0.5 shrink-0" />
             <span className="truncate w-full leading-tight">{language === 'bn' ? 'অভিযোগ' : 'Feed'}</span>
@@ -148,7 +148,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onOpenTrackModal}
-            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[11px] sm:text-xs font-semibold text-neutral-700 hover:text-emerald-900 hover:bg-emerald-50/80 transition-colors cursor-pointer min-w-0"
+            className="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-xs sm:text-xs font-semibold text-neutral-700 hover:text-emerald-900 hover:bg-emerald-50/80 transition-colors cursor-pointer min-w-0"
           >
             <Search className="w-4 h-4 text-emerald-700 mb-0.5 shrink-0" />
             <span className="truncate w-full leading-tight">{language === 'bn' ? 'ট্র্যাকিং' : 'Track'}</span>

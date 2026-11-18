@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { AreaStat, CategoryStat, Language, ProblemReport, SubmissionType, UrgencyLevel } from '../types';
 import { UI_STRINGS } from '../data/mockData';
-import { X, Check, Copy, MessageSquareText, ShieldCheck, CheckCircle2, Lightbulb, AlertTriangle } from 'lucide-react';
-import { sanitizeString, sanitizePhoneNumber } from '../services/security';
+import { X, Check, Copy, MessageSquareText, ShieldCheck, CheckCircle2, Lightbulb, AlertTriangle, Lock, Smartphone } from 'lucide-react';
+import { sanitizeString } from '../services/security';
+import { normalizeBdMobile, formatBdMobile } from '../services/phone';
+import { readContact, rememberCode, rememberContact } from '../services/myReports';
 
 interface SubmitProblemModalProps {
   isOpen: boolean;
@@ -10,7 +12,7 @@ interface SubmitProblemModalProps {
   language: Language;
   areas: AreaStat[];
   categories: CategoryStat[];
-  onSubmit: (problem: ProblemReport) => void;
+  onSubmit: (problem: ProblemReport) => Promise<ProblemReport>;
 }
 
 export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
@@ -26,33 +28,54 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
   // Submission Type: complaint (অভিযোগ) vs advice (উপদেশ / পরামর্শ)
   const [submissionType, setSubmissionType] = useState<SubmissionType>('complaint');
 
-  const [citizenName, setCitizenName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [ward, setWard] = useState(areas[0]?.wardNumber || 'ward-01');
+  // এই ফোনে আগে ব্যবহৃত নাম/নম্বর থাকলে নিজে থেকেই বসে যাবে (বারবার টাইপ করতে হবে না)
+  const [citizenName, setCitizenName] = useState(() => readContact().name);
+  const [phone, setPhone] = useState(() => readContact().phone);
+  const [ward, setWard] = useState('');
   const [category, setCategory] = useState(categories[0]?.id || 'road');
   const [specificLocation, setSpecificLocation] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [urgency, setUrgency] = useState<UrgencyLevel>('normal');
-  const [isAnonymous, setIsAnonymous] = useState(false);
+  const isAnonymous = false; // বেনামী অপশন নেই: নাম, নম্বর ও ওয়ার্ড বাধ্যতামূলক
 
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
   const isAdvice = submissionType === 'advice';
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMsg('');
 
     const cleanTitle = sanitizeString(title, 120);
     const cleanDesc = sanitizeString(description, 1000);
     const cleanLocation = sanitizeString(specificLocation, 150);
     const cleanName = sanitizeString(citizenName, 60);
-    const cleanPhone = isAnonymous ? '' : sanitizePhoneNumber(phone);
+    const normalizedPhone = normalizeBdMobile(phone) || '';
+    const cleanPhone = normalizedPhone;
+
+    if (cleanName.length < 2) {
+      setErrorMsg(language === 'bn' ? 'আপনার নাম লিখুন।' : 'Please enter your name.');
+      return;
+    }
+    if (!ward) {
+      setErrorMsg(language === 'bn' ? 'আপনার ওয়ার্ড বেছে নিন।' : 'Please choose your ward.');
+      return;
+    }
+    if (!normalizedPhone) {
+      setErrorMsg(
+        language === 'bn'
+          ? 'মোবাইল নম্বরটি সঠিক নয়। ১১ অঙ্কের নম্বর দিন (যেমন ০১৭XXXXXXXX)।'
+          : 'Please enter a valid 11-digit mobile number (e.g. 017XXXXXXXX).'
+      );
+      return;
+    }
 
     if (!cleanTitle) {
       setErrorMsg(
@@ -108,11 +131,7 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
       category,
       ward,
       specificLocation: cleanLocation,
-      citizenName: isAnonymous
-        ? language === 'bn'
-          ? 'গোপন নাগরিক'
-          : 'Anonymous Citizen'
-        : cleanName || (language === 'bn' ? 'এলাকাবাসী' : 'Local Resident'),
+      citizenName: cleanName,
       phone: cleanPhone,
       isAnonymous,
       urgency,
@@ -136,8 +155,24 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
       ],
     };
 
-    onSubmit(newProblem);
-    setSubmittedCode(trackingCode);
+    setIsSubmitting(true);
+    try {
+      // সার্ভার আসল ট্র্যাকিং কোড তৈরি করে; সেটাই নাগরিককে দেখানো হয়
+      const created = await onSubmit(newProblem);
+      rememberCode(created.trackingCode);
+      if (!isAnonymous) rememberContact(cleanName, formatBdMobile(normalizedPhone));
+      setSubmittedCode(created.trackingCode);
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error && err.message
+          ? err.message
+          : language === 'bn'
+          ? 'জমা দেওয়া যায়নি। ইন্টারনেট দেখে আবার চেষ্টা করুন। আপনার লেখা মুছে যায়নি।'
+          : 'Could not submit. Please check your connection and try again.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCopyCode = () => {
@@ -151,13 +186,13 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
   const handleResetAndClose = () => {
     setSubmittedCode(null);
     setSubmissionType('complaint');
-    setCitizenName('');
-    setPhone('');
+    const saved = readContact();
+    setCitizenName(saved.name);
+    setPhone(saved.phone);
     setTitle('');
     setDescription('');
     setSpecificLocation('');
     setUrgency('normal');
-    setIsAnonymous(false);
     setErrorMsg('');
     onClose();
   };
@@ -196,7 +231,7 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
                     : 'Share Your Advice or Suggestion'
                   : strings.submitTitle}
               </h3>
-              <p className="text-[11px] sm:text-xs text-white/80">
+              <p className="text-xs sm:text-xs text-white/80">
                 {language === 'bn' ? 'মোঃ আনোয়ার হোসেন ভূঁইয়ার সেবাদল' : 'Direct Action Team of Md. Anwar Hossain Bhuiyan'}
               </p>
             </div>
@@ -263,6 +298,12 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
               )}
             </div>
 
+            <p className="mt-4 text-sm text-neutral-600 max-w-sm mx-auto leading-relaxed">
+              {language === 'bn'
+                ? 'কোডটি এই ফোনে সংরক্ষিত হয়েছে। পরে "অবস্থা দেখুন" চাপলেই আপনার অভিযোগের অবস্থা দেখতে পাবেন, কোনো লগইন বা কোড মনে রাখার দরকার নেই।'
+                : 'This code is saved on this phone. Tap "Track" later to see progress, no login needed.'}
+            </p>
+
             <div className="mt-8 flex justify-center gap-3">
               <button
                 type="button"
@@ -324,10 +365,14 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
                   <span className="text-red-500">*</span>
                 </label>
                 <select
+                  required
                   value={ward}
                   onChange={(e) => setWard(e.target.value)}
                   className="w-full px-3.5 py-2.5 text-sm bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"
                 >
+                  <option value="" disabled>
+                    {language === 'bn' ? 'ওয়ার্ড বেছে নিন…' : 'Choose your ward…'}
+                  </option>
                   {areas.map((a) => (
                     <option key={a.wardNumber} value={a.wardNumber}>
                       {language === 'bn' ? a.wardNameBn : a.wardNameEn}
@@ -490,53 +535,55 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
               </div>
             </div>
 
-            {/* Citizen Info & Anonymous Switch */}
-            <div className="pt-2 border-t border-neutral-200/80">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-neutral-800">
-                  {language === 'bn' ? 'যোগাযোগের তথ্য' : 'Contact Information'}
-                </span>
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-600">
-                  <input
-                    type="checkbox"
-                    checked={isAnonymous}
-                    onChange={(e) => setIsAnonymous(e.target.checked)}
-                    className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
-                  />
-                  <span>
-                    {isAdvice
-                      ? language === 'bn'
-                        ? 'পরামর্শকারীর নাম গোপন রাখুন'
-                        : 'Keep name confidential'
-                      : strings.formAnonymous}
-                  </span>
-                </label>
+            {/* যোগাযোগ: নম্বর দিলেই হবে, কোনো লগইন/OTP/কোড নেই */}
+            <div className="pt-3 border-t border-neutral-200/80 space-y-3">
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950">
+                <Lock className="w-5 h-5 mt-0.5 shrink-0 text-emerald-700" aria-hidden="true" />
+                <p className="text-sm leading-relaxed">
+                  {language === 'bn'
+                    ? 'নাম ও নম্বর শুধু অ্যাডমিন দেখবেন, ওয়েবসাইটে অন্য কেউ দেখতে পাবে না। পরে এই নম্বর দিয়েই অভিযোগের অবস্থা দেখতে পারবেন। কোনো লগইন বা OTP লাগবে না।'
+                    : 'Only the admin sees your name and number. You can later check progress with this number. No login or OTP.'}
+                </p>
               </div>
 
               {!isAnonymous && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-medium text-neutral-600 mb-1">
-                      {strings.formFullName}
+                    <label htmlFor="report-phone" className="flex items-center gap-1.5 text-sm font-bold text-neutral-800 mb-1">
+                      <Smartphone className="w-4 h-4 text-emerald-700" aria-hidden="true" />
+                      {language === 'bn' ? 'আপনার মোবাইল নম্বর' : 'Your mobile number'}{' '}
+                      <span className="text-red-500">*</span>
                     </label>
                     <input
+                      id="report-phone"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder={language === 'bn' ? '০১৭XXXXXXXX' : '017XXXXXXXX'}
+                      className="w-full px-4 py-3 text-lg tracking-wide bg-neutral-50 border-2 border-neutral-300 rounded-xl focus:outline-none focus:border-emerald-600 focus:bg-white"
+                    />
+                    <p className="text-xs text-neutral-500 mt-1">
+                      {language === 'bn'
+                        ? 'প্রয়োজনে আমরা এই নম্বরে ফোন করে সমস্যাটি জেনে নেব।'
+                        : 'We may call this number to understand the issue.'}
+                    </p>
+                  </div>
+                  <div>
+                    <label htmlFor="report-name" className="block text-sm font-medium text-neutral-700 mb-1">
+                      {strings.formFullName} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="report-name"
                       type="text"
+                      autoComplete="name"
+                      required
                       value={citizenName}
                       onChange={(e) => setCitizenName(e.target.value)}
                       placeholder={language === 'bn' ? 'আপনার নাম' : 'Your Name'}
-                      className="w-full px-3.5 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-600 mb-1">
-                      {strings.formPhone}
-                    </label>
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder={language === 'bn' ? '০১৬১৩-XXXXXX' : '01613-XXXXXX'}
-                      className="w-full px-3.5 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"
+                      className="w-full px-4 py-3 text-base bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"
                     />
                   </div>
                 </div>
@@ -554,13 +601,18 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
               </button>
               <button
                 type="submit"
-                className={`px-6 py-2.5 text-sm font-bold text-white active:scale-95 rounded-xl shadow-sm transition-all cursor-pointer ${
+                disabled={isSubmitting}
+                className={`px-6 py-3 text-base font-bold text-white active:scale-95 rounded-xl shadow-sm transition-all cursor-pointer disabled:opacity-60 ${
                   isAdvice
                     ? 'bg-indigo-700 hover:bg-indigo-800'
                     : 'bg-emerald-700 hover:bg-emerald-800'
                 }`}
               >
-                {isAdvice
+                {isSubmitting
+                  ? language === 'bn'
+                    ? 'জমা হচ্ছে...'
+                    : 'Submitting...'
+                  : isAdvice
                   ? language === 'bn'
                     ? 'উপদেশ ও পরামর্শ দাখিল করুন'
                     : 'Submit Advice'

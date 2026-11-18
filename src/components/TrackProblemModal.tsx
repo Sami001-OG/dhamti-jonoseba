@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Language, ProblemReport } from '../types';
 import { UI_STRINGS } from '../data/mockData';
-import { X, Search, CheckCircle2, Clock, AlertCircle, MapPin, Calendar, UserCheck } from 'lucide-react';
+import { X, Search, CheckCircle2, Clock, AlertCircle, MapPin, Calendar, UserCheck, Smartphone } from 'lucide-react';
+import { readMyCodes } from '../services/myReports';
+import { api } from '../services/api';
 
 interface TrackProblemModalProps {
   isOpen: boolean;
@@ -20,35 +22,51 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
   const [query, setQuery] = useState('');
   const [searched, setSearched] = useState(false);
   const [result, setResult] = useState<ProblemReport | null>(null);
+  const [results, setResults] = useState<ProblemReport[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
   if (!isOpen) return null;
 
-  const handleSearch = (e: React.FormEvent) => {
+  // এই ফোন থেকে জমা দেওয়া অভিযোগ (কোড মনে রাখতে বা লিখতে হয় না)
+  const myReports = readMyCodes()
+    .map((code) => problems.find((p) => p.trackingCode === code))
+    .filter((p): p is ProblemReport => Boolean(p));
+
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSearched(true);
-    const cleanQuery = query.trim().toLowerCase();
-    const cleanDigits = query.replace(/[^0-9]/g, '');
-
-    if (!cleanQuery) {
+    if (!query.trim() || loading) return;
+    setSearched(false);
+    setSearchError('');
+    setLoading(true);
+    try {
+      // মোবাইল নম্বর বা ট্র্যাকিং কোড, দুটোই সার্ভার চিনে নেয় (বাংলা অঙ্কেও চলে)
+      const list = await api.track(query.trim());
+      setResults(list);
+      setResult(list[0] || null);
+    } catch (err) {
+      setResults([]);
       setResult(null);
-      return;
+      setSearchError(
+        err instanceof Error && err.message
+          ? err.message
+          : language === 'bn'
+          ? 'ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।'
+          : 'Network problem. Please try again.'
+      );
+    } finally {
+      setSearched(true);
+      setLoading(false);
     }
-
-    const found = problems.find((p) => {
-      // 1. Exact tracking code match
-      if (p.trackingCode.toLowerCase() === cleanQuery) {
-        return true;
-      }
-      // 2. Full phone match (only if not anonymous and query has at least 10 digits)
-      if (!p.isAnonymous && p.phone && cleanDigits.length >= 10) {
-        const problemDigits = p.phone.replace(/[^0-9]/g, '');
-        return problemDigits === cleanDigits;
-      }
-      return false;
-    });
-
-    setResult(found || null);
   };
+
+  // অবস্থার ধাপ: গৃহীত → যাচাই → কাজ চলছে → সমাধান
+  const STEPS: { id: string; bn: string; en: string }[] = [
+    { id: 'pending', bn: 'গৃহীত', en: 'Received' },
+    { id: 'reviewing', bn: 'যাচাই চলছে', en: 'Reviewing' },
+    { id: 'in_progress', bn: 'কাজ চলছে', en: 'In progress' },
+    { id: 'resolved', bn: 'সমাধান', en: 'Resolved' },
+  ];
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -112,36 +130,100 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={strings.trackInputPlaceholder}
-              className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"
+              className="flex-1 min-w-0 px-3 sm:px-4 py-3 text-base bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"
             />
             <button
               type="submit"
-              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs sm:text-sm rounded-xl transition-colors shrink-0 cursor-pointer"
+              disabled={loading}
+              className="px-5 py-3 disabled:opacity-60 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-base rounded-xl transition-colors shrink-0 cursor-pointer"
             >
-              {strings.searchBtn}
+              {loading ? (language === 'bn' ? 'খোঁজা হচ্ছে…' : 'Searching…') : strings.searchBtn}
             </button>
           </form>
 
           {/* Quick Guidance Hint */}
-          <div className="mt-2 text-[11px] text-neutral-500 flex items-center gap-1.5">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-            <span>
-              {language === 'bn'
-                ? 'অভিযোগ বা উপদেশ দাখিলের পর প্রাপ্ত ট্র্যাকিং কোড (উদাঃ JNS-2026-XXXX বা ADV-2026-XXXX) দিয়ে অনুসন্ধান করুন।'
-                : 'Enter the tracking code (e.g. JNS-2026-XXXX or ADV-2026-XXXX) provided upon submission.'}
-            </span>
-          </div>
+          <p className="mt-2 text-sm text-neutral-600 leading-relaxed">
+            {language === 'bn'
+              ? 'অভিযোগ করার সময় যে মোবাইল নম্বর দিয়েছিলেন সেটি লিখুন, অথবা ট্র্যাকিং কোড (যেমন JNS-2026-1234) লিখুন।'
+              : 'Enter the mobile number you used when reporting, or your tracking code (e.g. JNS-2026-1234).'}
+          </p>
+
+          {/* এই ফোন থেকে জমা দেওয়া অভিযোগ */}
+          {myReports.length > 0 && (
+            <div className="mt-5">
+              <div className="flex items-center gap-1.5 text-sm font-bold text-neutral-800 mb-2">
+                <Smartphone className="w-4 h-4 text-emerald-700" aria-hidden="true" />
+                <span>{language === 'bn' ? 'এই ফোন থেকে আপনার জমা দেওয়া' : 'Submitted from this phone'}</span>
+              </div>
+              <div className="space-y-2">
+                {myReports.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setSearched(true);
+                      setSearchError('');
+                      setQuery(p.trackingCode);
+                      setResults([p]);
+                      setResult(p);
+                    }}
+                    className="w-full text-left px-4 py-3 rounded-xl border border-neutral-200 bg-white hover:bg-emerald-50 active:bg-emerald-50 cursor-pointer flex items-center justify-between gap-3"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-base font-semibold text-neutral-900 truncate">{p.title}</span>
+                      <span className="block text-xs font-mono text-neutral-500">{p.trackingCode}</span>
+                    </span>
+                    <span className="shrink-0">{getStatusBadge(p.status)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Result Area */}
-          {searched && !result && (
+          {searchError && (
+            <div className="mt-5 p-4 rounded-2xl border border-red-200 bg-red-50 text-red-800 text-sm font-semibold">
+              {searchError}
+            </div>
+          )}
+
+          {searched && !result && !searchError && (
             <div className="mt-6 p-6 text-center bg-neutral-50 rounded-2xl border border-neutral-200">
               <AlertCircle className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-neutral-800">
-                {strings.searchNotFound}
+              <p className="text-base font-semibold text-neutral-800">
+                {language === 'bn' ? 'এই নম্বর বা কোডে কোনো অভিযোগ পাওয়া যায়নি।' : 'No report found for this number or code.'}
               </p>
-              <p className="text-xs text-neutral-500 mt-1">
-                {language === 'bn' ? 'সঠিক কোড বা ফোন নম্বর লিখে পুনরায় অনুসন্ধান করুন।' : 'Please check your tracking code and search again.'}
+              <p className="text-sm text-neutral-500 mt-1">
+                {language === 'bn'
+                  ? 'অভিযোগের সময় যে নম্বর দিয়েছিলেন ঠিক সেটি লিখুন, অথবা ট্র্যাকিং কোড দিন।'
+                  : 'Use the exact number you reported with, or your tracking code.'}
               </p>
+            </div>
+          )}
+
+          {results.length > 1 && (
+            <div className="mt-5">
+              <p className="text-sm font-bold text-neutral-800 mb-2">
+                {language === 'bn' ? `এই নম্বরে ${results.length}টি অভিযোগ পাওয়া গেছে, বেছে নিন:` : `${results.length} reports found, choose one:`}
+              </p>
+              <div className="space-y-2">
+                {results.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setResult(p)}
+                    className={`w-full text-left px-4 py-3 rounded-xl border cursor-pointer flex items-center justify-between gap-3 ${
+                      result?.id === p.id ? 'border-emerald-600 bg-emerald-50' : 'border-neutral-200 bg-white hover:bg-neutral-50'
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-base font-semibold text-neutral-900 truncate">{p.title}</span>
+                      <span className="block text-xs font-mono text-neutral-500">{p.trackingCode}</span>
+                    </span>
+                    <span className="shrink-0">{getStatusBadge(p.status)}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -152,7 +234,7 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
               <div className="flex items-start justify-between gap-3 pb-3 border-b border-neutral-200">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
                       result.submissionType === 'advice' ? 'bg-indigo-600 text-white' : 'bg-emerald-700 text-white'
                     }`}>
                       {result.submissionType === 'advice' ? (language === 'bn' ? 'উপদেশ ও পরামর্শ' : 'Advice') : (language === 'bn' ? 'অভিযোগ' : 'Complaint')}
@@ -168,6 +250,38 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
                 <div>
                   {getStatusBadge(result.status)}
                 </div>
+              </div>
+
+              {/* অগ্রগতির ধাপ */}
+              <div>
+                <p className="text-sm font-bold text-neutral-800 mb-3">
+                  {language === 'bn' ? 'আপনার অভিযোগ এখন যে ধাপে আছে' : 'Where your report stands now'}
+                </p>
+                <ol className="grid grid-cols-4 gap-1">
+                  {STEPS.map((st, i) => {
+                    const current = Math.max(0, STEPS.findIndex((x) => x.id === result.status));
+                    const done = i <= current;
+                    const isNow = i === current;
+                    return (
+                      <li key={st.id} className="flex flex-col items-center text-center">
+                        <div className="flex items-center w-full">
+                          <span className={`flex-1 h-1 ${i === 0 ? 'bg-transparent' : done ? 'bg-emerald-600' : 'bg-neutral-200'}`} />
+                          <span
+                            className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-sm font-bold ${
+                              done ? 'bg-emerald-700 text-white' : 'bg-neutral-200 text-neutral-500'
+                            } ${isNow ? 'ring-4 ring-emerald-200' : ''}`}
+                          >
+                            {done ? '✓' : i + 1}
+                          </span>
+                          <span className={`flex-1 h-1 ${i === STEPS.length - 1 ? 'bg-transparent' : i < current ? 'bg-emerald-600' : 'bg-neutral-200'}`} />
+                        </div>
+                        <span className={`mt-1.5 text-xs leading-tight ${isNow ? 'font-bold text-emerald-800' : 'text-neutral-600'}`}>
+                          {language === 'bn' ? st.bn : st.en}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
               </div>
 
               {/* Location & Info */}
@@ -204,11 +318,11 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
                 <div className="space-y-3 relative before:absolute before:inset-0 before:left-3 before:w-0.5 before:bg-neutral-200">
                   {result.timeline.map((step, idx) => (
                     <div key={step.id || idx} className="relative flex items-start gap-3 pl-1">
-                      <div className="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[10px] font-bold z-10 shrink-0">
+                      <div className="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-xs font-bold z-10 shrink-0">
                         {idx + 1}
                       </div>
                       <div className="flex-1 bg-white p-2.5 rounded-xl border border-neutral-200 text-xs shadow-2xs">
-                        <div className="flex items-center justify-between text-[11px] text-neutral-400 mb-1">
+                        <div className="flex items-center justify-between text-xs text-neutral-400 mb-1">
                           <span className="font-semibold text-neutral-700">{step.author}</span>
                           <span>{new Date(step.timestamp).toLocaleDateString()}</span>
                         </div>

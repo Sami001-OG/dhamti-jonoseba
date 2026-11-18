@@ -2,22 +2,35 @@ import { createClient, Client } from '@libsql/client';
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
-import { ProblemReport, ManifestoItem, LeaderProfile } from '../src/types/index.ts';
-import { DEFAULT_PROFILE } from '../src/data/mockData.ts';
-import { INITIAL_MANIFESTO_ITEMS } from '../src/data/manifestoData.ts';
+import type { ProblemReport, ManifestoItem, LeaderProfile } from '../src/types/index.js';
+import { DEFAULT_PROFILE } from '../src/data/mockData.js';
+import { INITIAL_MANIFESTO_ITEMS, LEGACY_DEMO_MANIFESTO } from '../src/data/manifestoData.js';
+import { normalizeBdMobile } from '../src/services/phone.js';
 
 dotenv.config();
-
-// Prepare local data storage directory for fallback file database
-const dataDir = path.resolve(process.cwd(), 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
 
 const rawUrl = process.env.TURSO_DATABASE_URL?.trim();
 const rawToken = process.env.TURSO_AUTH_TOKEN?.trim();
 
 export const isTursoRemote = Boolean(rawUrl && (rawUrl.startsWith('libsql://') || rawUrl.startsWith('https://') || rawUrl.startsWith('http://')));
+
+// Vercel-এর মতো serverless পরিবেশে লোকাল ফাইল টেকে না (প্রতিবার মুছে যায়)।
+// তাই সেখানে Turso ছাড়া নতুন তথ্য সংরক্ষণ করতে দেওয়া হয় না।
+export const isServerless = Boolean(process.env.VERCEL);
+export const isDbPersistent = isTursoRemote || !isServerless;
+
+// লোকাল ফাইল-ডেটাবেসের ফোল্ডার (serverless-এ শুধু /tmp লেখা যায়)
+const dataDir = isServerless ? '/tmp' : path.resolve(process.cwd(), 'data');
+if (!isTursoRemote) {
+  try {
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+  } catch (err) {
+    console.error('[DB] Could not prepare local data directory:', err);
+  }
+}
+
 export const databaseUrl = isTursoRemote ? rawUrl! : `file:${path.join(dataDir, 'dhamti.db')}`;
 
 export const db: Client = createClient({
@@ -93,6 +106,15 @@ export async function initDatabase() {
     );
   `);
 
+  // সাইটের ছোট সেটিংস (যেমন ওয়ার্ডের গ্রামের নাম) key/value আকারে
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS site_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+
   // Seed Leader Profile if empty
   const profileCountResult = await db.execute(`SELECT COUNT(*) as count FROM leader_profile WHERE id = 'current'`);
   const profileCount = Number(profileCountResult.rows[0]?.count ?? 0);
@@ -119,6 +141,36 @@ export async function initDatabase() {
         DEFAULT_PROFILE.officeAddress,
         new Date().toISOString(),
       ],
+    });
+  }
+
+  // একবারের মাইগ্রেশন: আগের ডিফল্ট পদবি/ঠিকানা থাকলে নতুনটি বসাই (সম্পাদিত হলে ছুঁই না)।
+  // বাংলা "য়" দুইভাবে লেখা যায় (U+09DF বা U+09AF+U+09BC), তাই NFC করে তুলনা করি।
+  const nfc = (v: unknown) => String(v ?? '').normalize('NFC').trim();
+  const OLD_DESIGNATION = nfc('ধামতী ইউনিয়ন সেবক');
+  const OLD_ADDRESS = nfc('ধামতী ইউনিয়ন জনসেবা কার্যালয়, দেবিদ্বার, কুমিল্লা');
+  const current = await db.execute(`SELECT designation, office_address FROM leader_profile WHERE id = 'current'`);
+  if (current.rows.length > 0) {
+    const row = current.rows[0];
+    if (nfc(row.designation) === OLD_DESIGNATION) {
+      await db.execute({
+        sql: `UPDATE leader_profile SET designation = ? WHERE id = 'current'`,
+        args: [DEFAULT_PROFILE.designation],
+      });
+    }
+    if (nfc(row.office_address) === OLD_ADDRESS) {
+      await db.execute({
+        sql: `UPDATE leader_profile SET office_address = ? WHERE id = 'current'`,
+        args: [DEFAULT_PROFILE.officeAddress],
+      });
+    }
+  }
+
+  // ইশতেহার এখনো প্রকাশিত হয়নি: আগের অসম্পাদিত ডেমো সারি মুছি (সম্পাদিত সারিতে last_updated বদলে যায়, তাই সেগুলো থাকে)
+  for (const demo of LEGACY_DEMO_MANIFESTO) {
+    await db.execute({
+      sql: `DELETE FROM manifesto_items WHERE id = ? AND last_updated = ?`,
+      args: [demo.id, demo.lastUpdated],
     });
   }
 
@@ -161,36 +213,54 @@ export async function initDatabase() {
 // PROBLEMS CRUD OPERATIONS
 // ==========================================
 
+function rowToProblem(row: Record<string, unknown>): ProblemReport {
+  let timeline: ProblemReport['timeline'] = [];
+  try {
+    timeline = typeof row.timeline === 'string' ? JSON.parse(row.timeline) : [];
+  } catch {
+    timeline = [];
+  }
+  return {
+    id: String(row.id),
+    trackingCode: String(row.tracking_code),
+    submissionType: row.submission_type as ProblemReport['submissionType'],
+    title: String(row.title),
+    description: String(row.description),
+    category: String(row.category),
+    ward: String(row.ward),
+    specificLocation: String(row.specific_location ?? ''),
+    citizenName: String(row.citizen_name ?? ''),
+    phone: String(row.phone ?? ''),
+    isAnonymous: Boolean(row.is_anonymous),
+    urgency: row.urgency as ProblemReport['urgency'],
+    status: row.status as ProblemReport['status'],
+    createdAt: String(row.created_at),
+    upvotes: Number(row.upvotes ?? 0),
+    timeline,
+    assignedOfficer: row.assigned_officer ? String(row.assigned_officer) : undefined,
+    resolutionNote: row.resolution_note ? String(row.resolution_note) : undefined,
+  };
+}
+
 export async function getAllProblems(): Promise<ProblemReport[]> {
   const result = await db.execute(`SELECT * FROM problems ORDER BY created_at DESC`);
-  return result.rows.map((row) => {
-    let timeline = [];
-    try {
-      timeline = typeof row.timeline === 'string' ? JSON.parse(row.timeline) : [];
-    } catch {
-      timeline = [];
-    }
-    return {
-      id: String(row.id),
-      trackingCode: String(row.tracking_code),
-      submissionType: row.submission_type as ProblemReport['submissionType'],
-      title: String(row.title),
-      description: String(row.description),
-      category: String(row.category),
-      ward: String(row.ward),
-      specificLocation: String(row.specific_location ?? ''),
-      citizenName: String(row.citizen_name ?? ''),
-      phone: String(row.phone ?? ''),
-      isAnonymous: Boolean(row.is_anonymous),
-      urgency: row.urgency as ProblemReport['urgency'],
-      status: row.status as ProblemReport['status'],
-      createdAt: String(row.created_at),
-      upvotes: Number(row.upvotes ?? 0),
-      timeline,
-      assignedOfficer: row.assigned_officer ? String(row.assigned_officer) : undefined,
-      resolutionNote: row.resolution_note ? String(row.resolution_note) : undefined,
-    };
+  return result.rows.map((row) => rowToProblem(row as unknown as Record<string, unknown>));
+}
+
+export async function findProblemByTrackingCode(code: string): Promise<ProblemReport | null> {
+  const result = await db.execute({
+    sql: `SELECT * FROM problems WHERE LOWER(tracking_code) = LOWER(?) LIMIT 1`,
+    args: [code],
   });
+  return result.rows.length ? rowToProblem(result.rows[0] as unknown as Record<string, unknown>) : null;
+}
+
+/** একই নম্বরের সব অভিযোগ (নতুনটি আগে)। পুরনো সারির নম্বর ভিন্ন ধাঁচে থাকলেও মেলে। */
+export async function findProblemsByPhone(normalizedPhone: string): Promise<ProblemReport[]> {
+  const result = await db.execute(`SELECT * FROM problems WHERE phone != '' ORDER BY created_at DESC`);
+  return result.rows
+    .map((row) => rowToProblem(row as unknown as Record<string, unknown>))
+    .filter((p) => normalizeBdMobile(p.phone) === normalizedPhone);
 }
 
 export async function insertProblem(problem: ProblemReport): Promise<ProblemReport> {
@@ -274,27 +344,7 @@ export async function updateProblemStatus(
     sql: `SELECT * FROM problems WHERE id = ?`,
     args: [id],
   });
-  const upRow = updated.rows[0];
-  return {
-    id: String(upRow.id),
-    trackingCode: String(upRow.tracking_code),
-    submissionType: upRow.submission_type as ProblemReport['submissionType'],
-    title: String(upRow.title),
-    description: String(upRow.description),
-    category: String(upRow.category),
-    ward: String(upRow.ward),
-    specificLocation: String(upRow.specific_location ?? ''),
-    citizenName: String(upRow.citizen_name ?? ''),
-    phone: String(upRow.phone ?? ''),
-    isAnonymous: Boolean(upRow.is_anonymous),
-    urgency: upRow.urgency as ProblemReport['urgency'],
-    status: upRow.status as ProblemReport['status'],
-    createdAt: String(upRow.created_at),
-    upvotes: Number(upRow.upvotes ?? 0),
-    timeline,
-    assignedOfficer: upRow.assigned_officer ? String(upRow.assigned_officer) : undefined,
-    resolutionNote: upRow.resolution_note ? String(upRow.resolution_note) : undefined,
-  };
+  return rowToProblem(updated.rows[0] as unknown as Record<string, unknown>);
 }
 
 export async function upvoteProblem(id: string, delta: number): Promise<number> {
@@ -428,12 +478,19 @@ export async function resetManifestoItems(initialItems: ManifestoItem[]): Promis
 // LEADER PROFILE CRUD OPERATIONS
 // ==========================================
 
+const DATA_URL_IMAGE = /^data:image\/(jpeg|png|webp);base64,/;
+
 export async function getLeaderProfile(): Promise<LeaderProfile> {
   const res = await db.execute(`SELECT * FROM leader_profile WHERE id = 'current'`);
   if (res.rows.length === 0) {
     return DEFAULT_PROFILE;
   }
   const row = res.rows[0];
+  const stored = row.profile_image ? String(row.profile_image) : '';
+  // অ্যাডমিনের আপলোড করা ছবি ডেটাবেসে থাকে; পাবলিক URL-এ ভার্সন যোগ করি যেন নতুন ছবি সঙ্গে সঙ্গে দেখা যায়
+  const profileImage = DATA_URL_IMAGE.test(stored)
+    ? `/api/profile/photo?v=${encodeURIComponent(String(row.updated_at || '1'))}`
+    : stored || '/leader.jpg';
   return {
     name: String(row.name),
     designation: String(row.designation),
@@ -441,13 +498,14 @@ export async function getLeaderProfile(): Promise<LeaderProfile> {
     mainSlogan: String(row.main_slogan),
     subSlogan: String(row.sub_slogan),
     heroAnnouncement: String(row.hero_announcement),
-    profileImage: row.profile_image ? String(row.profile_image) : '/leader.jpg',
+    profileImage,
     phone: String(row.phone || DEFAULT_PROFILE.phone),
     email: String(row.email || DEFAULT_PROFILE.email),
     officeAddress: String(row.office_address || DEFAULT_PROFILE.officeAddress),
   };
 }
 
+/** প্রোফাইলের লেখা তথ্য হালনাগাদ। ছবি এখানে বদলায় না (ছবির জন্য আলাদা ফাংশন)। */
 export async function updateLeaderProfile(profile: LeaderProfile): Promise<LeaderProfile> {
   const now = new Date().toISOString();
   await db.execute({
@@ -462,7 +520,6 @@ export async function updateLeaderProfile(profile: LeaderProfile): Promise<Leade
         main_slogan = excluded.main_slogan,
         sub_slogan = excluded.sub_slogan,
         hero_announcement = excluded.hero_announcement,
-        profile_image = excluded.profile_image,
         phone = excluded.phone,
         email = excluded.email,
         office_address = excluded.office_address,
@@ -475,14 +532,52 @@ export async function updateLeaderProfile(profile: LeaderProfile): Promise<Leade
       profile.mainSlogan,
       profile.subSlogan,
       profile.heroAnnouncement,
-      profile.profileImage || '/leader.jpg',
+      '/leader.jpg',
       profile.phone || DEFAULT_PROFILE.phone,
       profile.email || DEFAULT_PROFILE.email,
       profile.officeAddress || DEFAULT_PROFILE.officeAddress,
       now,
     ],
   });
-  return profile;
+  return getLeaderProfile();
+}
+
+/** আপলোড করা ছবির ডেটা (data URL) — না থাকলে null */
+export async function getLeaderPhotoDataUrl(): Promise<string | null> {
+  const res = await db.execute(`SELECT profile_image FROM leader_profile WHERE id = 'current'`);
+  const v = res.rows[0]?.profile_image ? String(res.rows[0].profile_image) : '';
+  return DATA_URL_IMAGE.test(v) ? v : null;
+}
+
+/** ছবি বসাই (dataUrl) অথবা মুছে ডিফল্টে ফিরি (null) */
+export async function setLeaderPhoto(dataUrl: string | null): Promise<LeaderProfile> {
+  // প্রোফাইল সারি না থাকলে আগে ডিফল্ট বসাই
+  const existing = await db.execute(`SELECT 1 FROM leader_profile WHERE id = 'current'`);
+  if (existing.rows.length === 0) await updateLeaderProfile(DEFAULT_PROFILE);
+  await db.execute({
+    sql: `UPDATE leader_profile SET profile_image = ?, updated_at = ? WHERE id = 'current'`,
+    args: [dataUrl ?? '/leader.jpg', new Date().toISOString()],
+  });
+  return getLeaderProfile();
+}
+
+// ==========================================
+// SITE SETTINGS (key/value)
+// ==========================================
+
+export async function getSetting(key: string): Promise<string | null> {
+  const res = await db.execute({ sql: `SELECT value FROM site_settings WHERE key = ?`, args: [key] });
+  return res.rows[0] ? String(res.rows[0].value) : null;
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  await db.execute({
+    sql: `
+      INSERT INTO site_settings (key, value, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `,
+    args: [key, value, new Date().toISOString()],
+  });
 }
 
 // ==========================================
@@ -509,6 +604,7 @@ export async function getDatabaseStatus() {
       provider: 'turso',
       mode: isTursoRemote ? 'turso-cloud' : 'turso-libsql-local',
       isRemote: isTursoRemote,
+      persistent: isDbPersistent,
       databaseUrl: safeUrl,
       problemsCount: Number(pCountRes.rows[0]?.count ?? 0),
       manifestoCount: Number(mCountRes.rows[0]?.count ?? 0),
