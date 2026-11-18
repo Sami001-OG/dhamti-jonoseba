@@ -7,13 +7,12 @@
     <meta name="description" content="আমাদের ধামতী আমরাই গড়ব - একসাথে গড়ব আগামীর ধামতী। মোঃ আনোয়ার হোসেন ভূঁইয়ার নাগরিক সেবা ও সমস্যা নিরসন পোর্টাল।" />
 
     <!-- Favicon & Device Icons -->
+    <link rel="canonical" href="https://dhamti-jonoseba.vercel.app/" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="shortcut icon" href="/favicon.ico" />
-    <link rel="image_src" href="https://iili.io/nkRTTsn.jpg" />
-    <meta itemprop="image" content="https://iili.io/nkRTTsn.jpg" />
     <meta name="theme-color" content="#064e3b" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -26,93 +25,46 @@
     <meta property="og:description" content="আমাদের ধামতী আমরাই গড়ব - একসাথে গড়ব আগামীর ধামতী। মোঃ আনোয়ার হোসেন ভূঁইয়ার নাগরিক সেবা ও সমস্যা নিরসন পোর্টাল।" />
     <meta property="og:locale" content="bn_BD" />
 
-    <!-- Primary Fast CDN Image (< 250KB, 1200x630, 100% WhatsApp/Facebook/Twitter compliant) -->
-    <meta property="og:image" content="https://iili.io/nkRTTsn.jpg" />
-    <meta property="og:image:secure_url" content="https://iili.io/nkRTTsn.jpg" />
+    <meta property="og:url" content="https://dhamti-jonoseba.vercel.app/" />
+    <!-- শেয়ার ছবি নিজের সাইটেই রাখা (ফ্রি ইমেজ হোস্টের ওপর নির্ভর নেই) -->
+    <meta property="og:image" content="https://dhamti-jonoseba.vercel.app/og-image-1200x630.jpg" />
+    <meta property="og:image:secure_url" content="https://dhamti-jonoseba.vercel.app/og-image-1200x630.jpg" />
     <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="আমাদের ধামতী আমরাই গড়ব | মোঃ আনোয়ার হোসেন ভূঁইয়া" />
-
-    <!-- User-provided Permanent High-Resolution Image Fallback -->
-    <meta property="og:image" content="https://i.ibb.co.com/LhQsZhqb/file-000000003d708211bf52650783257d48.png" />
-    <meta property="og:image:secure_url" content="https://i.ibb.co.com/LhQsZhqb/file-000000003d708211bf52650783257d48.png" />
-    <meta property="og:image:type" content="image/png" />
-    <meta property="og:image:width" content="1672" />
-    <meta property="og:image:height" content="941" />
-    <meta property="og:image:alt" content="আমাদের ধামতী আমরাই গড়ব | মোঃ আনোয়ার হোসেন ভূঁইয়া" />
+    <meta property="og:image:alt" content="আমাদের ধামতী আমরাই গড়ব | মোঃ আনোয়ার হোসেন ভূঁইয়া" />
 
     <!-- Twitter / X Social Cards -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="আমাদের ধামতী আমরাই গড়ব | মোঃ আনোয়ার হোসেন ভূঁইয়া" />
     <meta name="twitter:description" content="আমাদের ধামতী আমরাই গড়ব - একসাথে গড়ব আগামীর ধামতী। ধামতীবাসীর নাগরিক সমস্যা সরাসরি জানান ও সমাধান পর্যবেক্ষণ করুন।" />
-    <meta name="twitter:image" content="https://iili.io/nkRTTsn.jpg" />
+    <meta name="twitter:image" content="https://dhamti-jonoseba.vercel.app/og-image-1200x630.jpg" />
     <meta name="twitter:image:alt" content="আমাদের ধামতী আমরাই গড়ব | মোঃ আনোয়ার হোসেন ভূঁইয়া" />
 
-    <!-- Natural, High-Legibility Soothing Bengali & Latin Fonts -->
+    <!-- একটি মাত্র ফন্ট (Hind Siliguri) - ধীর ইন্টারনেটে দ্রুত লোড হয় -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@300;400;500;600&family=Noto+Serif+Bengali:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <script>
-      // Dynamically align canonical and og:url with whatever deployed domain or custom URL the user opens
-      (function() {
-        try {
-          if (typeof window !== 'undefined' && window.location) {
-            var fullUrl = window.location.href;
-            
-            var ogUrl = document.querySelector('meta[property="og:url"]');
-            if (!ogUrl) {
-              ogUrl = document.createElement('meta');
-              ogUrl.setAttribute('property', 'og:url');
-              document.head.appendChild(ogUrl);
-            }
-            ogUrl.setAttribute('content', fullUrl);
-
-            var twitterUrl = document.querySelector('meta[name="twitter:url"]');
-            if (!twitterUrl) {
-              twitterUrl = document.createElement('meta');
-              twitterUrl.setAttribute('name', 'twitter:url');
-              document.head.appendChild(twitterUrl);
-            }
-            twitterUrl.setAttribute('content', fullUrl);
-
-            var canonical = document.querySelector('link[rel="canonical"]');
-            if (!canonical) {
-              canonical = document.createElement('link');
-              canonical.setAttribute('rel', 'canonical');
-              document.head.appendChild(canonical);
-            }
-            canonical.setAttribute('href', fullUrl);
-          }
-        } catch (e) {}
-      })();
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Schema.org Structured Data (JSON-LD) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "GovernmentService",
-      "name": "ধামতী ইউনিয়ন নাগরিক সেবা মঞ্চ",
-      "alternateName": "Dhamti Jonoseba Civic Portal",
-      "description": "আমাদের ধামতী আমরাই গড়ব - নাগরিক সেবা ও সমস্যা নিরসন পোর্টাল। মোঃ আনোয়ার হোসেন ভূঁইয়া কর্তৃক পরিচালিত।",
-      "image": [
-        "https://iili.io/nkRTTsn.jpg",
-        "https://i.ibb.co.com/LhQsZhqb/file-000000003d708211bf52650783257d48.png"
-      ],
-      "provider": {
-        "@type": "Person",
-        "name": "মোঃ আনোয়ার হোসেন ভূঁইয়া",
-        "jobTitle": "জননেতা ও সমাজসেবক",
+      "@type": "Organization",
+      "name": "ধামতী জনসেবা মঞ্চ",
+      "alternateName": "Dhamti Jonoseba",
+      "url": "https://dhamti-jonoseba.vercel.app/",
+      "logo": "https://dhamti-jonoseba.vercel.app/apple-touch-icon.png",
+      "description": "আমাদের ধামতী আমরাই গড়ব - নাগরিক মতামত, অভিযোগ ও ইশতেহার অগ্রগতির মঞ্চ। মোঃ আনোয়ার হোসেন ভূঁইয়া কর্তৃক পরিচালিত।",
+      "founder": { "@type": "Person", "name": "মোঃ আনোয়ার হোসেন ভূঁইয়া" },
+      "contactPoint": {
+        "@type": "ContactPoint",
         "telephone": "+8801613394074",
         "email": "Anwarbhuiyan184@gmail.com",
-        "image": "https://iili.io/nkRTTsn.jpg"
+        "contactType": "citizen feedback",
+        "availableLanguage": "bn"
       },
-      "areaServed": {
-        "@type": "AdministrativeArea",
-        "name": "ধামতী ইউনিয়ন, দেবিদ্বার, কুমিল্লা"
-      },
-      "serviceType": "নাগরিক অভিযোগ ও উন্নয়ন সেবা ট্র্যাকিং"
+      "areaServed": "ধামতী ইউনিয়ন, দেবিদ্বার, কুমিল্লা"
     }
     </script>
   </head>

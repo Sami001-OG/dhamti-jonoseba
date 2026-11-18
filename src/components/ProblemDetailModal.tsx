@@ -142,7 +142,7 @@ export const ProblemDetailModal: React.FC<ProblemDetailModalProps> = ({
                 title={language === 'bn' ? 'শেয়ার করুন' : 'Share'}
               >
                 <Share2 className="w-3.5 h-3.5" />
-                {copied && <span className="text-emerald-700 text-[11px] font-bold">{language === 'bn' ? 'কপি হয়েছে' : 'Copied!'}</span>}
+                {copied && <span className="text-emerald-700 text-xs font-bold">{language === 'bn' ? 'কপি হয়েছে' : 'Copied!'}</span>}
               </button>
             </div>
           </div>
@@ -201,11 +201,11 @@ export const ProblemDetailModal: React.FC<ProblemDetailModalProps> = ({
             <div className="space-y-3 relative before:absolute before:inset-0 before:left-3 before:w-0.5 before:bg-neutral-200">
               {problem.timeline.map((event, idx) => (
                 <div key={event.id || idx} className="relative flex items-start gap-3 pl-1">
-                  <div className="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[10px] font-bold z-10 shrink-0">
+                  <div className="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-xs font-bold z-10 shrink-0">
                     {idx + 1}
                   </div>
                   <div className="flex-1 bg-white p-3 rounded-xl border border-neutral-200 text-xs shadow-2xs">
-                    <div className="flex items-center justify-between text-[11px] text-neutral-400 mb-1">
+                    <div className="flex items-center justify-between text-xs text-neutral-400 mb-1">
                       <span className="font-semibold text-neutral-800">{event.author}</span>
                       <span>{new Date(event.timestamp).toLocaleString()}</span>
                     </div>

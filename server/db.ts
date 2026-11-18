@@ -2,22 +2,34 @@ import { createClient, Client } from '@libsql/client';
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
-import { ProblemReport, ManifestoItem, LeaderProfile } from '../src/types/index.ts';
-import { DEFAULT_PROFILE } from '../src/data/mockData.ts';
-import { INITIAL_MANIFESTO_ITEMS } from '../src/data/manifestoData.ts';
+import type { ProblemReport, ManifestoItem, LeaderProfile } from '../src/types/index.js';
+import { DEFAULT_PROFILE } from '../src/data/mockData.js';
+import { INITIAL_MANIFESTO_ITEMS, LEGACY_DEMO_MANIFESTO } from '../src/data/manifestoData.js';
 
 dotenv.config();
-
-// Prepare local data storage directory for fallback file database
-const dataDir = path.resolve(process.cwd(), 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
 
 const rawUrl = process.env.TURSO_DATABASE_URL?.trim();
 const rawToken = process.env.TURSO_AUTH_TOKEN?.trim();
 
 export const isTursoRemote = Boolean(rawUrl && (rawUrl.startsWith('libsql://') || rawUrl.startsWith('https://') || rawUrl.startsWith('http://')));
+
+// Vercel-এর মতো serverless পরিবেশে লোকাল ফাইল টেকে না (প্রতিবার মুছে যায়)।
+// তাই সেখানে Turso ছাড়া নতুন তথ্য সংরক্ষণ করতে দেওয়া হয় না।
+export const isServerless = Boolean(process.env.VERCEL);
+export const isDbPersistent = isTursoRemote || !isServerless;
+
+// লোকাল ফাইল-ডেটাবেসের ফোল্ডার (serverless-এ শুধু /tmp লেখা যায়)
+const dataDir = isServerless ? '/tmp' : path.resolve(process.cwd(), 'data');
+if (!isTursoRemote) {
+  try {
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+  } catch (err) {
+    console.error('[DB] Could not prepare local data directory:', err);
+  }
+}
+
 export const databaseUrl = isTursoRemote ? rawUrl! : `file:${path.join(dataDir, 'dhamti.db')}`;
 
 export const db: Client = createClient({
@@ -122,6 +134,36 @@ export async function initDatabase() {
     });
   }
 
+  // একবারের মাইগ্রেশন: আগের ডিফল্ট পদবি/ঠিকানা থাকলে নতুনটি বসাই (সম্পাদিত হলে ছুঁই না)।
+  // বাংলা "য়" দুইভাবে লেখা যায় (U+09DF বা U+09AF+U+09BC), তাই NFC করে তুলনা করি।
+  const nfc = (v: unknown) => String(v ?? '').normalize('NFC').trim();
+  const OLD_DESIGNATION = nfc('ধামতী ইউনিয়ন সেবক');
+  const OLD_ADDRESS = nfc('ধামতী ইউনিয়ন জনসেবা কার্যালয়, দেবিদ্বার, কুমিল্লা');
+  const current = await db.execute(`SELECT designation, office_address FROM leader_profile WHERE id = 'current'`);
+  if (current.rows.length > 0) {
+    const row = current.rows[0];
+    if (nfc(row.designation) === OLD_DESIGNATION) {
+      await db.execute({
+        sql: `UPDATE leader_profile SET designation = ? WHERE id = 'current'`,
+        args: [DEFAULT_PROFILE.designation],
+      });
+    }
+    if (nfc(row.office_address) === OLD_ADDRESS) {
+      await db.execute({
+        sql: `UPDATE leader_profile SET office_address = ? WHERE id = 'current'`,
+        args: [DEFAULT_PROFILE.officeAddress],
+      });
+    }
+  }
+
+  // ইশতেহার এখনো প্রকাশিত হয়নি: আগের অসম্পাদিত ডেমো সারি মুছি (সম্পাদিত সারিতে last_updated বদলে যায়, তাই সেগুলো থাকে)
+  for (const demo of LEGACY_DEMO_MANIFESTO) {
+    await db.execute({
+      sql: `DELETE FROM manifesto_items WHERE id = ? AND last_updated = ?`,
+      args: [demo.id, demo.lastUpdated],
+    });
+  }
+
   // Seed Manifesto Items if empty
   const manifestoCountResult = await db.execute(`SELECT COUNT(*) as count FROM manifesto_items`);
   const manifestoCount = Number(manifestoCountResult.rows[0]?.count ?? 0);
@@ -161,36 +203,38 @@ export async function initDatabase() {
 // PROBLEMS CRUD OPERATIONS
 // ==========================================
 
+function rowToProblem(row: Record<string, unknown>): ProblemReport {
+  let timeline: ProblemReport['timeline'] = [];
+  try {
+    timeline = typeof row.timeline === 'string' ? JSON.parse(row.timeline) : [];
+  } catch {
+    timeline = [];
+  }
+  return {
+    id: String(row.id),
+    trackingCode: String(row.tracking_code),
+    submissionType: row.submission_type as ProblemReport['submissionType'],
+    title: String(row.title),
+    description: String(row.description),
+    category: String(row.category),
+    ward: String(row.ward),
+    specificLocation: String(row.specific_location ?? ''),
+    citizenName: String(row.citizen_name ?? ''),
+    phone: String(row.phone ?? ''),
+    isAnonymous: Boolean(row.is_anonymous),
+    urgency: row.urgency as ProblemReport['urgency'],
+    status: row.status as ProblemReport['status'],
+    createdAt: String(row.created_at),
+    upvotes: Number(row.upvotes ?? 0),
+    timeline,
+    assignedOfficer: row.assigned_officer ? String(row.assigned_officer) : undefined,
+    resolutionNote: row.resolution_note ? String(row.resolution_note) : undefined,
+  };
+}
+
 export async function getAllProblems(): Promise<ProblemReport[]> {
   const result = await db.execute(`SELECT * FROM problems ORDER BY created_at DESC`);
-  return result.rows.map((row) => {
-    let timeline = [];
-    try {
-      timeline = typeof row.timeline === 'string' ? JSON.parse(row.timeline) : [];
-    } catch {
-      timeline = [];
-    }
-    return {
-      id: String(row.id),
-      trackingCode: String(row.tracking_code),
-      submissionType: row.submission_type as ProblemReport['submissionType'],
-      title: String(row.title),
-      description: String(row.description),
-      category: String(row.category),
-      ward: String(row.ward),
-      specificLocation: String(row.specific_location ?? ''),
-      citizenName: String(row.citizen_name ?? ''),
-      phone: String(row.phone ?? ''),
-      isAnonymous: Boolean(row.is_anonymous),
-      urgency: row.urgency as ProblemReport['urgency'],
-      status: row.status as ProblemReport['status'],
-      createdAt: String(row.created_at),
-      upvotes: Number(row.upvotes ?? 0),
-      timeline,
-      assignedOfficer: row.assigned_officer ? String(row.assigned_officer) : undefined,
-      resolutionNote: row.resolution_note ? String(row.resolution_note) : undefined,
-    };
-  });
+  return result.rows.map((row) => rowToProblem(row as unknown as Record<string, unknown>));
 }
 
 export async function insertProblem(problem: ProblemReport): Promise<ProblemReport> {
@@ -274,27 +318,7 @@ export async function updateProblemStatus(
     sql: `SELECT * FROM problems WHERE id = ?`,
     args: [id],
   });
-  const upRow = updated.rows[0];
-  return {
-    id: String(upRow.id),
-    trackingCode: String(upRow.tracking_code),
-    submissionType: upRow.submission_type as ProblemReport['submissionType'],
-    title: String(upRow.title),
-    description: String(upRow.description),
-    category: String(upRow.category),
-    ward: String(upRow.ward),
-    specificLocation: String(upRow.specific_location ?? ''),
-    citizenName: String(upRow.citizen_name ?? ''),
-    phone: String(upRow.phone ?? ''),
-    isAnonymous: Boolean(upRow.is_anonymous),
-    urgency: upRow.urgency as ProblemReport['urgency'],
-    status: upRow.status as ProblemReport['status'],
-    createdAt: String(upRow.created_at),
-    upvotes: Number(upRow.upvotes ?? 0),
-    timeline,
-    assignedOfficer: upRow.assigned_officer ? String(upRow.assigned_officer) : undefined,
-    resolutionNote: upRow.resolution_note ? String(upRow.resolution_note) : undefined,
-  };
+  return rowToProblem(updated.rows[0] as unknown as Record<string, unknown>);
 }
 
 export async function upvoteProblem(id: string, delta: number): Promise<number> {
@@ -509,6 +533,7 @@ export async function getDatabaseStatus() {
       provider: 'turso',
       mode: isTursoRemote ? 'turso-cloud' : 'turso-libsql-local',
       isRemote: isTursoRemote,
+      persistent: isDbPersistent,
       databaseUrl: safeUrl,
       problemsCount: Number(pCountRes.rows[0]?.count ?? 0),
       manifestoCount: Number(mCountRes.rows[0]?.count ?? 0),

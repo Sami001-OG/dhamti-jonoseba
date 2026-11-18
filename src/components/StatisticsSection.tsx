@@ -185,12 +185,6 @@ export const StatisticsSection: React.FC<StatisticsSectionProps> = ({
                           <h4 className="text-sm font-bold text-neutral-900">
                             {language === 'bn' ? area.wardNameBn : area.wardNameEn}
                           </h4>
-                          <div className="flex items-center gap-2 text-xs text-neutral-500 mt-0.5">
-                            <span>{language === 'bn' ? 'প্রধান সমস্যা:' : 'Major Issue:'}</span>
-                            <span className="font-medium text-neutral-700">
-                              {language === 'bn' ? area.topCategoryBn : area.topCategoryEn}
-                            </span>
-                          </div>
                         </div>
                       </div>
 
@@ -264,7 +258,7 @@ export const StatisticsSection: React.FC<StatisticsSectionProps> = ({
 
             {/* Direct Leader Commitment Quote */}
             <div className="mt-8 pt-6 border-t border-neutral-100 bg-emerald-50/60 p-4 rounded-xl border border-emerald-100">
-              <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">
+              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block">
                 {language === 'bn' ? 'মোঃ আনোয়ার হোসেন ভূঁইয়া' : 'Md. Anwar Hossain Bhuiyan'}
               </span>
               <p className="text-xs text-neutral-700 italic mt-1 leading-relaxed">

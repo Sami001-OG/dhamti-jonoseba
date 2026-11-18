@@ -193,7 +193,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-md text-emerald-950 text-xs sm:text-sm font-semibold mb-4 border border-emerald-300 shadow-sm">
               <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
               <span className="bengali-text">
-                {leaderProfile.designation || (language === 'bn' ? 'ধামতী ইউনিয়ন সেবক ও জননেতা' : 'Dhamti Union Representative')}
+                {leaderProfile.designation || (language === 'bn' ? 'চেয়ারম্যান পদপ্রার্থী, ১৩ নং ধামতী ইউনিয়ন পরিষদ' : 'Chairman Candidate, 13 No. Dhamti Union Parishad')}
               </span>
             </div>
 

@@ -30,12 +30,14 @@ interface ManifestoSectionProps {
   language: Language;
   manifestoItems: ManifestoItem[];
   onOpenAdmin?: () => void;
+  onOpenReportModal?: () => void;
 }
 
 export const ManifestoSection: React.FC<ManifestoSectionProps> = ({
   language,
   manifestoItems,
   onOpenAdmin,
+  onOpenReportModal,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -122,6 +124,70 @@ export const ManifestoSection: React.FC<ManifestoSectionProps> = ({
         return 'bg-neutral-100 text-neutral-700 border-neutral-200';
     }
   };
+
+  // ইশতেহার এখনো প্রকাশিত হয়নি: ডেমো সংখ্যা না দেখিয়ে সৎ "শীঘ্রই আসছে" অবস্থা
+  if (totalItems === 0) {
+    const steps = [
+      {
+        n: '১',
+        bn: 'আপনি জানান',
+        textBn: 'ধামতীর কোন সমস্যা আগে সমাধান হওয়া উচিত, তা আপনার মতো করে লিখুন বা জানান।',
+      },
+      {
+        n: '২',
+        bn: 'আমরা শুনি',
+        textBn: 'প্রতিটি মতামত পড়ে এলাকার প্রয়োজন বুঝে ইশতেহার সাজানো হবে।',
+      },
+      {
+        n: '৩',
+        bn: 'অগ্রগতি দেখুন',
+        textBn: 'ইশতেহার প্রকাশের পর প্রতিটি প্রতিশ্রুতির অবস্থা (চলছে/সম্পন্ন) এখানেই দেখতে পাবেন।',
+      },
+    ];
+    const bn = language === 'bn';
+    return (
+      <section id="manifesto" className="py-12 sm:py-16 bg-gradient-to-b from-emerald-950 to-emerald-900 text-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-amber-300 text-sm font-semibold mb-4">
+            <Sparkles className="w-4 h-4" aria-hidden="true" />
+            <span>{bn ? 'নির্বাচনী ইশতেহার' : 'Electoral Manifesto'}</span>
+          </div>
+
+          <h2 className="text-3xl sm:text-4xl font-bold leading-[1.3] font-serif-bangla">
+            {bn ? 'আমাদের ইশতেহার শীঘ্রই আসছে' : 'Our manifesto is coming soon'}
+          </h2>
+          <p className="mt-3 text-base sm:text-lg text-emerald-100 leading-relaxed max-w-2xl mx-auto">
+            {bn
+              ? 'ইশতেহার লেখার আগে আমরা আপনার কথা শুনতে চাই। আপনার এলাকার সবচেয়ে বড় সমস্যা বা প্রত্যাশা কী?'
+              : 'Before writing it, we want to hear from you. What matters most in your area?'}
+          </p>
+
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-left">
+            {steps.map((st) => (
+              <div key={st.n} className="rounded-2xl bg-white/10 border border-white/15 p-5">
+                <span className="w-9 h-9 rounded-full bg-amber-400 text-emerald-950 font-extrabold text-lg flex items-center justify-center">
+                  {st.n}
+                </span>
+                <h3 className="mt-3 text-lg font-bold">{st.bn}</h3>
+                <p className="mt-1 text-sm text-emerald-100 leading-relaxed">{st.textBn}</p>
+              </div>
+            ))}
+          </div>
+
+          {onOpenReportModal && (
+            <button
+              type="button"
+              onClick={onOpenReportModal}
+              className="mt-8 inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-emerald-950 font-extrabold text-lg shadow-lg cursor-pointer"
+            >
+              <Target className="w-5 h-5" aria-hidden="true" />
+              <span>{bn ? 'আপনার প্রত্যাশা জানান' : 'Share your expectations'}</span>
+            </button>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="manifesto" className="py-12 sm:py-16 bg-neutral-50/70 border-b border-neutral-200">
@@ -217,7 +283,7 @@ export const ManifestoSection: React.FC<ManifestoSectionProps> = ({
                 <span className="text-2xl sm:text-3xl font-extrabold text-neutral-900 font-mono-num">
                   %{overallProgressPercentage}
                 </span>
-                <span className="text-[11px] text-neutral-500 font-medium">
+                <span className="text-xs text-neutral-500 font-medium">
                   {language === 'bn' ? 'বাস্তবায়ন সম্পন্ন' : 'Executed'}
                 </span>
               </div>
@@ -331,7 +397,7 @@ export const ManifestoSection: React.FC<ManifestoSectionProps> = ({
               <div>
                 <div className="text-xs font-bold text-emerald-950 flex items-center gap-2">
                   <span>{language === 'bn' ? 'বাস্তবায়িত নির্বাচনী প্রতিশ্রুতি' : 'Completed Commitments'}</span>
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-200 text-emerald-900 font-mono-num font-bold text-[11px]">
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-200 text-emerald-900 font-mono-num font-bold text-xs">
                     {completedItems} {language === 'bn' ? 'টি সম্পন্ন' : 'done'}
                   </span>
                 </div>
@@ -382,7 +448,7 @@ export const ManifestoSection: React.FC<ManifestoSectionProps> = ({
                       </div>
 
                       <span
-                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border ${getStatusBadgeClass(
+                        className={`px-2.5 py-1 text-xs font-bold rounded-lg border ${getStatusBadgeClass(
                           item.status
                         )}`}
                       >
@@ -438,7 +504,7 @@ export const ManifestoSection: React.FC<ManifestoSectionProps> = ({
                           style={{ width: `${Math.min(100, item.progressPercentage)}%` }}
                         />
                       </div>
-                      <div className="flex items-center justify-between text-[11px] text-neutral-500 mt-1.5">
+                      <div className="flex items-center justify-between text-xs text-neutral-500 mt-1.5">
                         <span>
                           {language === 'bn'
                             ? `মাইলস্টোন অর্জিত: ${completedMilestones}/${totalMilestones}`
@@ -497,7 +563,7 @@ export const ManifestoSection: React.FC<ManifestoSectionProps> = ({
                   {/* Expand/Collapse Toggle Button */}
                   <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between gap-2">
                     <div>
-                      <span className="text-[11px] text-neutral-400 font-medium">
+                      <span className="text-xs text-neutral-400 font-medium">
                         {language === 'bn' ? 'ধামতী ইউনিয়ন পরিষদ ও সেবাদল' : 'Dhamti Civic Leadership'}
                       </span>
                     </div>

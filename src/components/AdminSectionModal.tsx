@@ -29,7 +29,6 @@ import {
   Mail,
   MapPin,
   Trash2,
-  KeyRound,
   RefreshCw,
   PlusCircle,
   Lightbulb,
@@ -45,16 +44,8 @@ import {
   ChevronLeft,
   Database
 } from 'lucide-react';
-import {
-  verifyAdminPin,
-  checkLockoutStatus,
-  isAdminAuthenticated,
-  revokeAdminSession,
-  updateAdminPin,
-  sanitizeString,
-  sanitizeForCsv
-} from '../services/security';
-import { api, DbStatusInfo } from '../services/api';
+import { sanitizeString, sanitizeForCsv } from '../services/security';
+import { api, ApiError, DbStatusInfo } from '../services/api';
 
 interface AdminSectionModalProps {
   isOpen: boolean;
@@ -79,7 +70,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
   isOpen,
   onClose,
   language,
-  problems,
+  problems: publicProblems,
   areas,
   categories,
   leaderProfile,
@@ -93,33 +84,29 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
   onDeleteCompletedManifestos,
   onResetManifesto,
 }) => {
-  // Admin Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return isAdminAuthenticated();
-  });
+  // Admin Authentication State (সার্ভার-সাইড সেশন; ব্রাউজারে কোনো পাসওয়ার্ড/হ্যাশ থাকে না)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authChecking, setAuthChecking] = useState<boolean>(true);
+  const [authConfigured, setAuthConfigured] = useState<boolean>(true);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState<string>('');
   const [isVerifying, setIsVerifying] = useState(false);
-  const [lockoutRemaining, setLockoutRemaining] = useState<number>(() => {
-    return checkLockoutStatus().remainingSeconds;
-  });
-  const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
 
-  // Periodic session & lockout countdown timer
+  // প্যানেল খুললে সার্ভারকে জিজ্ঞেস করি লগইন আছে কিনা
   useEffect(() => {
-    const timer = setInterval(() => {
-      if (isAuthenticated && !isAdminAuthenticated()) {
-        setIsAuthenticated(false);
-      }
-      const status = checkLockoutStatus();
-      if (status.isLocked) {
-        setLockoutRemaining(status.remainingSeconds);
-      } else if (lockoutRemaining > 0) {
-        setLockoutRemaining(0);
-      }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isAuthenticated, lockoutRemaining]);
+    if (!isOpen) return;
+    let alive = true;
+    setAuthChecking(true);
+    api.adminSession().then((res) => {
+      if (!alive) return;
+      setIsAuthenticated(res.authenticated);
+      setAuthConfigured(res.configured);
+      setAuthChecking(false);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isOpen]);
 
   // Active Tab: 'complaints' | 'manifesto' | 'profile_settings'
   const [activeTab, setActiveTab] = useState<'complaints' | 'manifesto' | 'profile_settings'>('complaints');
@@ -161,6 +148,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
 
   // Profile Settings Form State
   const [editName, setEditName] = useState(leaderProfile.name);
+  const [editDesignation, setEditDesignation] = useState(leaderProfile.designation);
   const [editPromise, setEditPromise] = useState(leaderProfile.promise);
   const [editMainSlogan, setEditMainSlogan] = useState(leaderProfile.mainSlogan);
   const [editSubSlogan, setEditSubSlogan] = useState(leaderProfile.subSlogan);
@@ -168,13 +156,6 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
   const [editEmail, setEditEmail] = useState(leaderProfile.email);
   const [editAddress, setEditAddress] = useState(leaderProfile.officeAddress);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState(false);
-
-  // PIN Change State
-  const [currentPin, setCurrentPin] = useState('');
-  const [newPin, setNewPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
-  const [pinChangeError, setPinChangeError] = useState('');
-  const [pinSuccessMsg, setPinSuccessMsg] = useState(false);
 
   // Turso Database State
   const [dbStatus, setDbStatus] = useState<DbStatusInfo | null>(null);
@@ -184,6 +165,29 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
       api.getStatus().then(setDbStatus).catch(() => {});
     }
   }, [isOpen, isAuthenticated]);
+
+  // অ্যাডমিন লগইন থাকলে সার্ভার থেকে নাম-ফোনসহ পূর্ণ তালিকা আনি (সাধারণ তালিকায় এগুলো থাকে না)।
+  // সাধারণ তালিকা বদলালে (স্ট্যাটাস/মোছা/নতুন জমা) এটিও নতুন করে আনা হয়।
+  const [adminProblems, setAdminProblems] = useState<ProblemReport[] | null>(null);
+  useEffect(() => {
+    if (!isOpen || !isAuthenticated) {
+      setAdminProblems(null);
+      return;
+    }
+    let alive = true;
+    api
+      .adminGetProblems()
+      .then((list) => {
+        if (alive) setAdminProblems(list);
+      })
+      .catch(() => {
+        // সেশন শেষ হলে সাধারণ তালিকাতেই থাকি
+      });
+    return () => {
+      alive = false;
+    };
+  }, [isOpen, isAuthenticated, publicProblems]);
+  const problems = adminProblems ?? publicProblems;
 
   useEffect(() => {
     if (problems.length > 0 && !selectedProblemId) {
@@ -199,6 +203,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
 
   useEffect(() => {
     setEditName(leaderProfile.name);
+    setEditDesignation(leaderProfile.designation);
     setEditPromise(leaderProfile.promise);
     setEditMainSlogan(leaderProfile.mainSlogan);
     setEditSubSlogan(leaderProfile.subSlogan);
@@ -209,44 +214,32 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Handle Cryptographic PIN Login
+  // সার্ভারে পাসওয়ার্ড দিয়ে লগইন
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (lockoutRemaining > 0 || isVerifying || !pinInput.trim()) return;
+    if (isVerifying || !pinInput) return;
 
     setIsVerifying(true);
     setPinError('');
-
     try {
-      const res = await verifyAdminPin(pinInput);
+      await api.adminLogin(pinInput);
+      setIsAuthenticated(true);
+      setPinInput('');
+    } catch (err) {
+      setPinError(
+        err instanceof ApiError
+          ? err.message
+          : language === 'bn'
+          ? 'ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।'
+          : 'Network problem. Please try again.'
+      );
+    } finally {
       setIsVerifying(false);
-
-      if (res.success) {
-        setIsAuthenticated(true);
-        setPinError('');
-        setPinInput('');
-        setAttemptsRemaining(null);
-      } else {
-        if (res.locked) {
-          setLockoutRemaining(res.remainingSeconds);
-          setPinError(language === 'bn' ? 'অতিরিক্ত ভুল পিন দেওয়ার কারণে ৫ মিনিটের জন্য লক করা হয়েছে।' : 'Too many failed attempts. Locked for 5 minutes.');
-        } else {
-          setAttemptsRemaining(res.remainingAttempts);
-          setPinError(
-            language === 'bn'
-              ? `ভুল পিন কোড! আর ${res.remainingAttempts} বার চেষ্টা করা যাবে।`
-              : `Incorrect PIN! ${res.remainingAttempts} attempts remaining.`
-          );
-        }
-      }
-    } catch {
-      setIsVerifying(false);
-      setPinError(language === 'bn' ? 'যাচাই ব্যর্থ হয়েছে।' : 'Verification failed.');
     }
   };
 
-  const handleLogoutAdmin = () => {
-    revokeAdminSession();
+  const handleLogoutAdmin = async () => {
+    await api.adminLogout();
     setIsAuthenticated(false);
     setPinInput('');
   };
@@ -254,6 +247,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = sanitizeString(editName, 80);
+    const cleanDesignation = sanitizeString(editDesignation, 120);
     const cleanPromise = sanitizeString(editPromise, 150);
     const cleanMainSlogan = sanitizeString(editMainSlogan, 150);
     const cleanSubSlogan = sanitizeString(editSubSlogan, 150);
@@ -264,6 +258,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
     onUpdateLeaderProfile({
       ...leaderProfile,
       name: cleanName,
+      designation: cleanDesignation,
       promise: cleanPromise,
       mainSlogan: cleanMainSlogan,
       subSlogan: cleanSubSlogan,
@@ -277,36 +272,6 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
     setTimeout(() => setProfileSuccessMsg(false), 3000);
   };
 
-  const handleChangePin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPinChangeError('');
-    setPinSuccessMsg(false);
-
-    if (newPin.length < 4) {
-      setPinChangeError(language === 'bn' ? 'নতুন পিন কমপক্ষে ৪ সংখ্যার হতে হবে।' : 'New PIN must be at least 4 digits.');
-      return;
-    }
-
-    if (newPin !== confirmPin) {
-      setPinChangeError(language === 'bn' ? 'নতুন পিন ও কনফার্ম পিন মেলেনি।' : 'PIN confirmation does not match.');
-      return;
-    }
-
-    const res = await updateAdminPin(currentPin, newPin);
-    if (res.success) {
-      setCurrentPin('');
-      setNewPin('');
-      setConfirmPin('');
-      setPinSuccessMsg(true);
-      setTimeout(() => setPinSuccessMsg(false), 4000);
-    } else {
-      if (res.error === 'invalid_current_pin') {
-        setPinChangeError(language === 'bn' ? 'বর্তমান পিনটি সঠিক নয়।' : 'Incorrect current PIN.');
-      } else {
-        setPinChangeError(language === 'bn' ? 'পিন আপডেট ব্যর্থ হয়েছে।' : 'PIN update failed.');
-      }
-    }
-  };
 
   // Filter complaints & advice
   const filteredProblems = problems.filter((p) => {
@@ -568,23 +533,18 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                 </h4>
                 <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">
                   {language === 'bn'
-                    ? 'অননুমোদিত প্রবেশ রোধে এই প্যানেলটি পাসওয়ার্ড দ্বারা সুরক্ষিত। আপনার ৪ থেকে ১৬ সংখ্যার সিকিউরিটি পিন দিন।'
+                    ? 'অননুমোদিত প্রবেশ রোধে এই প্যানেলটি পাসওয়ার্ড দ্বারা সুরক্ষিত। অ্যাডমিন পাসওয়ার্ড দিন।'
                     : 'Encrypted administrative control. Please enter your secure PIN to manage citizen submissions and electoral commitments.'}
                 </p>
               </div>
 
-              {lockoutRemaining > 0 ? (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-xs">
-                  <span className="font-bold block mb-1">
-                    {language === 'bn' ? 'নিরাপত্তা লক সক্রিয়!' : 'Security Lock Active!'}
-                  </span>
-                  <span>
-                    {language === 'bn'
-                      ? `পুনরায় চেষ্টা করতে অপেক্ষা করুন: ${lockoutRemaining} সেকেন্ড`
-                      : `Please wait ${lockoutRemaining}s before retrying`}
-                  </span>
+              {!authChecking && !authConfigured && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-sm font-semibold">
+                  {language === 'bn'
+                    ? 'সার্ভারে অ্যাডমিন পাসওয়ার্ড এখনো সেট করা হয়নি। হোস্টিংয়ে ADMIN_PASSWORD ও SESSION_SECRET দিন।'
+                    : 'Admin password is not configured on the server (ADMIN_PASSWORD / SESSION_SECRET).'}
                 </div>
-              ) : null}
+              )}
 
               {pinError && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-semibold">
@@ -596,24 +556,20 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                 <div>
                   <input
                     type="password"
-                    maxLength={16}
-                    disabled={lockoutRemaining > 0 || isVerifying}
+                    maxLength={100}
+                    autoComplete="current-password"
+                    disabled={isVerifying || authChecking}
                     value={pinInput}
                     onChange={(e) => setPinInput(e.target.value)}
-                    placeholder="••••••"
+                    placeholder={language === 'bn' ? 'পাসওয়ার্ড' : 'Password'}
                     autoFocus
-                    className="w-full text-center tracking-[0.5em] text-2xl py-3 px-4 bg-neutral-50 border-2 border-neutral-300 rounded-2xl focus:outline-none focus:border-emerald-600 focus:bg-white font-mono disabled:opacity-50"
+                    className="w-full text-center text-lg py-3 px-4 bg-neutral-50 border-2 border-neutral-300 rounded-2xl focus:outline-none focus:border-emerald-600 focus:bg-white disabled:opacity-50"
                   />
-                  {attemptsRemaining !== null && attemptsRemaining > 0 && (
-                    <span className="text-[11px] text-amber-600 font-semibold block mt-1">
-                      {language === 'bn' ? `অবশিষ্ট প্রচেষ্টা: ${attemptsRemaining} বার` : `Remaining attempts: ${attemptsRemaining}`}
-                    </span>
-                  )}
                 </div>
 
                 <button
                   type="submit"
-                  disabled={lockoutRemaining > 0 || isVerifying || !pinInput.trim()}
+                  disabled={isVerifying || authChecking || !pinInput}
                   className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white rounded-xl font-bold text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Unlock className="w-4 h-4" />
@@ -622,7 +578,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
 
                 <div className="pt-2 text-[11px] text-neutral-400 flex items-center justify-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{language === 'bn' ? 'SHA-256 এনক্রিপ্টেড ও সুরক্ষিত ব্রুট-ফোর্স প্রটেকশন' : 'SHA-256 Encrypted & Anti-Brute Force Protected'}</span>
+                  <span>{language === 'bn' ? 'সার্ভারে যাচাই ও ভুল চেষ্টার সীমা সুরক্ষিত' : 'Verified on the server with attempt limits'}</span>
                 </div>
               </form>
             </div>
@@ -2016,6 +1972,20 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                         />
                       </div>
 
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-bold text-neutral-700 mb-1">
+                          {language === 'bn' ? 'পদবি / পরিচয়' : 'Designation'}
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editDesignation}
+                          onChange={(e) => setEditDesignation(e.target.value)}
+                          placeholder="চেয়ারম্যান পদপ্রার্থী, ১৩ নং ধামতী ইউনিয়ন পরিষদ"
+                          className="w-full px-3.5 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                        />
+                      </div>
+
                       <div>
                         <label className="block text-xs font-bold text-neutral-700 mb-1">
                           {language === 'bn' ? 'অঙ্গীকার / সাবটাইটেল' : 'Leader Promise / Subtitle'}
@@ -2077,7 +2047,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                           required
                           value={editAddress}
                           onChange={(e) => setEditAddress(e.target.value)}
-                          placeholder="ধামতী ইউনিয়ন জনসেবা কার্যালয়, দেবিদ্বার, কুমিল্লা"
+                          placeholder="জনসেবা কার্যালয়, ১৩ নং ধামতী ইউনিয়ন, দেবিদ্বার, কুমিল্লা"
                           className="w-full px-3.5 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
                         />
                       </div>
@@ -2094,85 +2064,7 @@ export const AdminSectionModal: React.FC<AdminSectionModalProps> = ({
                   </div>
                 </form>
 
-                {/* 4. Admin Security PIN Change */}
-                <div className="bg-neutral-50 p-5 rounded-2xl border border-neutral-200 max-w-3xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                      <KeyRound className="w-4 h-4 text-emerald-700" />
-                      <span>{language === 'bn' ? 'অ্যাডমিন সিকিউরিটি পিন পরিবর্তন' : 'Change Admin Security PIN'}</span>
-                    </h4>
-                    <span className="text-[11px] text-neutral-400">
-                      {language === 'bn' ? 'SHA-256 সুরক্ষিত' : 'SHA-256 Protected'}
-                    </span>
-                  </div>
-
-                  {pinSuccessMsg && (
-                    <span className="text-xs text-emerald-700 font-bold block bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
-                      {language === 'bn' ? '✓ পিন সফলভাবে পরিবর্তন করা হয়েছে!' : '✓ PIN successfully updated!'}
-                    </span>
-                  )}
-
-                  {pinChangeError && (
-                    <span className="text-xs text-red-600 font-semibold block bg-red-50 p-2.5 rounded-xl border border-red-200">
-                      {pinChangeError}
-                    </span>
-                  )}
-
-                  <form onSubmit={handleChangePin} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
-                        {language === 'bn' ? 'বর্তমান পিন' : 'Current PIN'}
-                      </label>
-                      <input
-                        type="password"
-                        maxLength={16}
-                        required
-                        value={currentPin}
-                        onChange={(e) => setCurrentPin(e.target.value)}
-                        placeholder="••••••"
-                        className="w-full px-3 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
-                        {language === 'bn' ? 'নতুন পিন (কমপক্ষে ৪ সংখ্যা)' : 'New PIN (min 4 chars)'}
-                      </label>
-                      <input
-                        type="password"
-                        maxLength={16}
-                        required
-                        value={newPin}
-                        onChange={(e) => setNewPin(e.target.value)}
-                        placeholder="••••••"
-                        className="w-full px-3 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
-                        {language === 'bn' ? 'নতুন পিন নিশ্চিত করুন' : 'Confirm New PIN'}
-                      </label>
-                      <input
-                        type="password"
-                        maxLength={16}
-                        required
-                        value={confirmPin}
-                        onChange={(e) => setConfirmPin(e.target.value)}
-                        placeholder="••••••"
-                        className="w-full px-3 py-2 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                      />
-                    </div>
-                    <div className="sm:col-span-3 flex justify-end">
-                      <button
-                        type="submit"
-                        className="px-5 py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
-                      >
-                        {language === 'bn' ? 'পিন আপডেট করুন' : 'Update Security PIN'}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                {/* 5. Turso Database Information & Architecture Card */}
+                {/* Turso Database Information & Architecture Card */}
                 <div className="bg-gradient-to-br from-neutral-900 to-neutral-950 text-white p-5 rounded-2xl border border-neutral-800 shadow-md space-y-4 max-w-3xl">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-bold flex items-center gap-2 text-white">

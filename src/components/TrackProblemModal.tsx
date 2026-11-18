@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Language, ProblemReport } from '../types';
 import { UI_STRINGS } from '../data/mockData';
-import { X, Search, CheckCircle2, Clock, AlertCircle, MapPin, Calendar, UserCheck } from 'lucide-react';
+import { X, Search, CheckCircle2, Clock, AlertCircle, MapPin, Calendar, UserCheck, Smartphone } from 'lucide-react';
+import { readMyCodes } from '../services/myReports';
 
 interface TrackProblemModalProps {
   isOpen: boolean;
@@ -23,30 +24,26 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
 
   if (!isOpen) return null;
 
+  // এই ফোন থেকে জমা দেওয়া অভিযোগ (কোড মনে রাখতে বা লিখতে হয় না)
+  const myReports = readMyCodes()
+    .map((code) => problems.find((p) => p.trackingCode === code))
+    .filter((p): p is ProblemReport => Boolean(p));
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearched(true);
-    const cleanQuery = query.trim().toLowerCase();
-    const cleanDigits = query.replace(/[^0-9]/g, '');
+    // কোডে বাংলা অঙ্ক বা বাড়তি ফাঁকা থাকলেও খুঁজে পাবে
+    const cleanQuery = query
+      .replace(/[০-৯]/g, (d) => String('০১২৩৪৫৬৭৮৯'.indexOf(d)))
+      .replace(/\s+/g, '')
+      .toLowerCase();
 
     if (!cleanQuery) {
       setResult(null);
       return;
     }
 
-    const found = problems.find((p) => {
-      // 1. Exact tracking code match
-      if (p.trackingCode.toLowerCase() === cleanQuery) {
-        return true;
-      }
-      // 2. Full phone match (only if not anonymous and query has at least 10 digits)
-      if (!p.isAnonymous && p.phone && cleanDigits.length >= 10) {
-        const problemDigits = p.phone.replace(/[^0-9]/g, '');
-        return problemDigits === cleanDigits;
-      }
-      return false;
-    });
-
+    const found = problems.find((p) => p.trackingCode.toLowerCase() === cleanQuery);
     setResult(found || null);
   };
 
@@ -112,18 +109,18 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={strings.trackInputPlaceholder}
-              className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"
+              className="flex-1 min-w-0 px-3 sm:px-4 py-3 text-base bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"
             />
             <button
               type="submit"
-              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs sm:text-sm rounded-xl transition-colors shrink-0 cursor-pointer"
+              className="px-5 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-base rounded-xl transition-colors shrink-0 cursor-pointer"
             >
               {strings.searchBtn}
             </button>
           </form>
 
           {/* Quick Guidance Hint */}
-          <div className="mt-2 text-[11px] text-neutral-500 flex items-center gap-1.5">
+          <div className="mt-2 text-xs text-neutral-500 flex items-center gap-1.5">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
             <span>
               {language === 'bn'
@@ -131,6 +128,36 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
                 : 'Enter the tracking code (e.g. JNS-2026-XXXX or ADV-2026-XXXX) provided upon submission.'}
             </span>
           </div>
+
+          {/* এই ফোন থেকে জমা দেওয়া অভিযোগ */}
+          {myReports.length > 0 && (
+            <div className="mt-5">
+              <div className="flex items-center gap-1.5 text-sm font-bold text-neutral-800 mb-2">
+                <Smartphone className="w-4 h-4 text-emerald-700" aria-hidden="true" />
+                <span>{language === 'bn' ? 'এই ফোন থেকে আপনার জমা দেওয়া' : 'Submitted from this phone'}</span>
+              </div>
+              <div className="space-y-2">
+                {myReports.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setSearched(true);
+                      setQuery(p.trackingCode);
+                      setResult(p);
+                    }}
+                    className="w-full text-left px-4 py-3 rounded-xl border border-neutral-200 bg-white hover:bg-emerald-50 active:bg-emerald-50 cursor-pointer flex items-center justify-between gap-3"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-base font-semibold text-neutral-900 truncate">{p.title}</span>
+                      <span className="block text-xs font-mono text-neutral-500">{p.trackingCode}</span>
+                    </span>
+                    <span className="shrink-0">{getStatusBadge(p.status)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Result Area */}
           {searched && !result && (
@@ -140,7 +167,7 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
                 {strings.searchNotFound}
               </p>
               <p className="text-xs text-neutral-500 mt-1">
-                {language === 'bn' ? 'সঠিক কোড বা ফোন নম্বর লিখে পুনরায় অনুসন্ধান করুন।' : 'Please check your tracking code and search again.'}
+                {language === 'bn' ? 'সঠিক কোড লিখে আবার চেষ্টা করুন, অথবা ওপরের তালিকা থেকে বেছে নিন।' : 'Please check your tracking code and search again.'}
               </p>
             </div>
           )}
@@ -152,7 +179,7 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
               <div className="flex items-start justify-between gap-3 pb-3 border-b border-neutral-200">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
                       result.submissionType === 'advice' ? 'bg-indigo-600 text-white' : 'bg-emerald-700 text-white'
                     }`}>
                       {result.submissionType === 'advice' ? (language === 'bn' ? 'উপদেশ ও পরামর্শ' : 'Advice') : (language === 'bn' ? 'অভিযোগ' : 'Complaint')}
@@ -204,11 +231,11 @@ export const TrackProblemModal: React.FC<TrackProblemModalProps> = ({
                 <div className="space-y-3 relative before:absolute before:inset-0 before:left-3 before:w-0.5 before:bg-neutral-200">
                   {result.timeline.map((step, idx) => (
                     <div key={step.id || idx} className="relative flex items-start gap-3 pl-1">
-                      <div className="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[10px] font-bold z-10 shrink-0">
+                      <div className="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-xs font-bold z-10 shrink-0">
                         {idx + 1}
                       </div>
                       <div className="flex-1 bg-white p-2.5 rounded-xl border border-neutral-200 text-xs shadow-2xs">
-                        <div className="flex items-center justify-between text-[11px] text-neutral-400 mb-1">
+                        <div className="flex items-center justify-between text-xs text-neutral-400 mb-1">
                           <span className="font-semibold text-neutral-700">{step.author}</span>
                           <span>{new Date(step.timestamp).toLocaleDateString()}</span>
                         </div>
