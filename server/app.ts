@@ -8,6 +8,8 @@ import crypto from 'node:crypto';
 import {
   initDatabase,
   getAllProblems,
+  findProblemByTrackingCode,
+  findProblemsByPhone,
   insertProblem,
   updateProblemStatus,
   upvoteProblem,
@@ -39,7 +41,7 @@ import {
   ID_PATTERN,
 } from './security.js';
 import { INITIAL_MANIFESTO_ITEMS, MANIFESTO_CATEGORIES_CONFIG } from '../src/data/manifestoData.js';
-import { normalizeBdMobile } from '../src/services/phone.js';
+import { normalizeBdMobile, toAsciiDigits } from '../src/services/phone.js';
 import { INITIAL_AREAS, CATEGORIES } from '../src/data/mockData.js';
 import type {
   ProblemReport,
@@ -90,21 +92,18 @@ function parseNewProblem(body: any): { ok: true; value: NewProblemInput } | { ok
   const title = cleanText(body.title, 120);
   const description = cleanText(body.description, 1000);
   const specificLocation = cleanText(body.specificLocation, 150);
-  const isAnonymous = body.isAnonymous === true;
-  const citizenName = isAnonymous ? '' : cleanText(body.citizenName, 60);
-  let phone = '';
-  if (!isAnonymous) {
-    const normalized = normalizeBdMobile(typeof body.phone === 'string' ? body.phone : '');
-    if (!normalized) {
-      return { ok: false, error: 'মোবাইল নম্বরটি সঠিক নয়। ১১ অঙ্কের নম্বর দিন (যেমন ০১৭XXXXXXXX), অথবা "নাম-নম্বর দিতে চাই না" বেছে নিন।' };
-    }
-    phone = normalized;
+  // নাম, মোবাইল নম্বর ও ওয়ার্ড সবসময় বাধ্যতামূলক (বেনামী জমা নেই)
+  const citizenName = cleanText(body.citizenName, 60);
+  if (citizenName.length < 2) return { ok: false, error: 'আপনার নাম লিখুন।' };
+  if (!WARD_IDS.has(body.ward)) return { ok: false, error: 'আপনার ওয়ার্ড বেছে নিন।' };
+  const phone = normalizeBdMobile(typeof body.phone === 'string' ? body.phone : '');
+  if (!phone) {
+    return { ok: false, error: 'মোবাইল নম্বরটি সঠিক নয়। ১১ অঙ্কের নম্বর দিন (যেমন ০১৭XXXXXXXX)।' };
   }
 
   if (!title) return { ok: false, error: 'শিরোনাম লিখুন।' };
   if (!description) return { ok: false, error: 'বিবরণ লিখুন।' };
   if (!specificLocation) return { ok: false, error: 'নির্দিষ্ট স্থান বা এলাকার বিবরণ লিখুন।' };
-  if (!WARD_IDS.has(body.ward)) return { ok: false, error: 'ওয়ার্ড নির্বাচন করুন।' };
   if (!CATEGORY_IDS.has(body.category)) return { ok: false, error: 'সমস্যার ধরন নির্বাচন করুন।' };
 
   const urgency: UrgencyLevel = URGENCY.includes(body.urgency) ? body.urgency : 'normal';
@@ -120,7 +119,7 @@ function parseNewProblem(body: any): { ok: true; value: NewProblemInput } | { ok
       specificLocation,
       citizenName,
       phone,
-      isAnonymous,
+      isAnonymous: false,
       urgency,
     },
   };
@@ -336,6 +335,30 @@ export function createApp() {
         console.error('Failed to create problem:', err);
         res.status(500).json({ error: 'জমা নেওয়া যায়নি। একটু পরে আবার চেষ্টা করুন।' });
       }
+  });
+
+  // নম্বর বা ট্র্যাকিং কোড দিয়ে অভিযোগের অবস্থা (লগইন/OTP ছাড়া)।
+  // শুধু অভিযোগের বিষয় ও অগ্রগতি ফেরত যায়; নাম ও নম্বর কখনোই নয়।
+  app.post('/api/track', async (req: Request, res: Response) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      const query = cleanText(req.body?.query, 40);
+      if (!query) return res.status(400).json({ error: 'মোবাইল নম্বর বা ট্র্যাকিং কোড লিখুন।' });
+
+      const phone = normalizeBdMobile(query);
+      let found: ProblemReport[] = [];
+      if (phone) {
+        found = await findProblemsByPhone(phone);
+      } else {
+        const one = await findProblemByTrackingCode(toAsciiDigits(query).replace(/\s+/g, ''));
+        if (one) found = [one];
+      }
+      if (found.length === 0) return res.status(404).json({ error: 'not_found' });
+      res.json(found.map(toPublic));
+    } catch (err) {
+      console.error('Track failed:', err);
+      res.status(500).json({ error: 'অনুসন্ধান করা যায়নি। আবার চেষ্টা করুন।' });
+    }
   });
 
   app.post('/api/problems/:id/upvote', needsPersistentDb, async (req: Request, res: Response) => {

@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import type { ProblemReport, ManifestoItem, LeaderProfile } from '../src/types/index.js';
 import { DEFAULT_PROFILE } from '../src/data/mockData.js';
 import { INITIAL_MANIFESTO_ITEMS, LEGACY_DEMO_MANIFESTO } from '../src/data/manifestoData.js';
+import { normalizeBdMobile } from '../src/services/phone.js';
 
 dotenv.config();
 
@@ -235,6 +236,22 @@ function rowToProblem(row: Record<string, unknown>): ProblemReport {
 export async function getAllProblems(): Promise<ProblemReport[]> {
   const result = await db.execute(`SELECT * FROM problems ORDER BY created_at DESC`);
   return result.rows.map((row) => rowToProblem(row as unknown as Record<string, unknown>));
+}
+
+export async function findProblemByTrackingCode(code: string): Promise<ProblemReport | null> {
+  const result = await db.execute({
+    sql: `SELECT * FROM problems WHERE LOWER(tracking_code) = LOWER(?) LIMIT 1`,
+    args: [code],
+  });
+  return result.rows.length ? rowToProblem(result.rows[0] as unknown as Record<string, unknown>) : null;
+}
+
+/** একই নম্বরের সব অভিযোগ (নতুনটি আগে)। পুরনো সারির নম্বর ভিন্ন ধাঁচে থাকলেও মেলে। */
+export async function findProblemsByPhone(normalizedPhone: string): Promise<ProblemReport[]> {
+  const result = await db.execute(`SELECT * FROM problems WHERE phone != '' ORDER BY created_at DESC`);
+  return result.rows
+    .map((row) => rowToProblem(row as unknown as Record<string, unknown>))
+    .filter((p) => normalizeBdMobile(p.phone) === normalizedPhone);
 }
 
 export async function insertProblem(problem: ProblemReport): Promise<ProblemReport> {

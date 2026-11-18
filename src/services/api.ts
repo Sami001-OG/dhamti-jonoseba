@@ -83,6 +83,19 @@ export const api = {
     return await res.json();
   },
 
+  // নম্বর বা ট্র্যাকিং কোড দিয়ে অভিযোগের অবস্থা। না পেলে ফাঁকা তালিকা।
+  async track(query: string): Promise<ProblemReport[]> {
+    const res = await fetch('/api/track', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: jsonHeaders,
+      body: JSON.stringify({ query }),
+    });
+    if (res.status === 404) return [];
+    await ensureOk(res, 'অনুসন্ধান করা যায়নি। আবার চেষ্টা করুন।');
+    return await res.json();
+  },
+
   // Problems
   async getProblems(): Promise<ProblemReport[]> {
     const res = await fetch('/api/problems');

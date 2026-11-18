@@ -31,13 +31,13 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
   // এই ফোনে আগে ব্যবহৃত নাম/নম্বর থাকলে নিজে থেকেই বসে যাবে (বারবার টাইপ করতে হবে না)
   const [citizenName, setCitizenName] = useState(() => readContact().name);
   const [phone, setPhone] = useState(() => readContact().phone);
-  const [ward, setWard] = useState(areas[0]?.wardNumber || 'ward-01');
+  const [ward, setWard] = useState('');
   const [category, setCategory] = useState(categories[0]?.id || 'road');
   const [specificLocation, setSpecificLocation] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [urgency, setUrgency] = useState<UrgencyLevel>('normal');
-  const [isAnonymous, setIsAnonymous] = useState(false);
+  const isAnonymous = false; // বেনামী অপশন নেই: নাম, নম্বর ও ওয়ার্ড বাধ্যতামূলক
 
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -57,14 +57,22 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
     const cleanDesc = sanitizeString(description, 1000);
     const cleanLocation = sanitizeString(specificLocation, 150);
     const cleanName = sanitizeString(citizenName, 60);
-    const normalizedPhone = isAnonymous ? '' : normalizeBdMobile(phone) || '';
+    const normalizedPhone = normalizeBdMobile(phone) || '';
     const cleanPhone = normalizedPhone;
 
-    if (!isAnonymous && !normalizedPhone) {
+    if (cleanName.length < 2) {
+      setErrorMsg(language === 'bn' ? 'আপনার নাম লিখুন।' : 'Please enter your name.');
+      return;
+    }
+    if (!ward) {
+      setErrorMsg(language === 'bn' ? 'আপনার ওয়ার্ড বেছে নিন।' : 'Please choose your ward.');
+      return;
+    }
+    if (!normalizedPhone) {
       setErrorMsg(
         language === 'bn'
-          ? 'মোবাইল নম্বরটি সঠিক নয়। ১১ অঙ্কের নম্বর দিন (যেমন ০১৭XXXXXXXX)। নম্বর দিতে না চাইলে নিচের "নাম-নম্বর দিতে চাই না" বেছে নিন।'
-          : 'Please enter a valid 11-digit mobile number (e.g. 017XXXXXXXX), or choose not to share it.'
+          ? 'মোবাইল নম্বরটি সঠিক নয়। ১১ অঙ্কের নম্বর দিন (যেমন ০১৭XXXXXXXX)।'
+          : 'Please enter a valid 11-digit mobile number (e.g. 017XXXXXXXX).'
       );
       return;
     }
@@ -123,11 +131,7 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
       category,
       ward,
       specificLocation: cleanLocation,
-      citizenName: isAnonymous
-        ? language === 'bn'
-          ? 'গোপন নাগরিক'
-          : 'Anonymous Citizen'
-        : cleanName || (language === 'bn' ? 'এলাকাবাসী' : 'Local Resident'),
+      citizenName: cleanName,
       phone: cleanPhone,
       isAnonymous,
       urgency,
@@ -189,7 +193,6 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
     setDescription('');
     setSpecificLocation('');
     setUrgency('normal');
-    setIsAnonymous(false);
     setErrorMsg('');
     onClose();
   };
@@ -362,10 +365,14 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
                   <span className="text-red-500">*</span>
                 </label>
                 <select
+                  required
                   value={ward}
                   onChange={(e) => setWard(e.target.value)}
                   className="w-full px-3.5 py-2.5 text-sm bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"
                 >
+                  <option value="" disabled>
+                    {language === 'bn' ? 'ওয়ার্ড বেছে নিন…' : 'Choose your ward…'}
+                  </option>
                   {areas.map((a) => (
                     <option key={a.wardNumber} value={a.wardNumber}>
                       {language === 'bn' ? a.wardNameBn : a.wardNameEn}
@@ -534,8 +541,8 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
                 <Lock className="w-5 h-5 mt-0.5 shrink-0 text-emerald-700" aria-hidden="true" />
                 <p className="text-sm leading-relaxed">
                   {language === 'bn'
-                    ? 'আপনার নাম ও নম্বর শুধু অ্যাডমিন দেখবেন, ওয়েবসাইটে অন্য কেউ দেখতে পাবে না। কোনো লগইন, OTP বা কোড লাগবে না।'
-                    : 'Only the admin can see your name and number, never the public. No login, OTP or code needed.'}
+                    ? 'নাম ও নম্বর শুধু অ্যাডমিন দেখবেন, ওয়েবসাইটে অন্য কেউ দেখতে পাবে না। পরে এই নম্বর দিয়েই অভিযোগের অবস্থা দেখতে পারবেন। কোনো লগইন বা OTP লাগবে না।'
+                    : 'Only the admin sees your name and number. You can later check progress with this number. No login or OTP.'}
                 </p>
               </div>
 
@@ -552,6 +559,7 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
                       type="tel"
                       inputMode="numeric"
                       autoComplete="tel"
+                      required
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder={language === 'bn' ? '০১৭XXXXXXXX' : '017XXXXXXXX'}
@@ -565,12 +573,13 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
                   </div>
                   <div>
                     <label htmlFor="report-name" className="block text-sm font-medium text-neutral-700 mb-1">
-                      {strings.formFullName}
+                      {strings.formFullName} <span className="text-red-500">*</span>
                     </label>
                     <input
                       id="report-name"
                       type="text"
                       autoComplete="name"
+                      required
                       value={citizenName}
                       onChange={(e) => setCitizenName(e.target.value)}
                       placeholder={language === 'bn' ? 'আপনার নাম' : 'Your Name'}
@@ -579,16 +588,6 @@ export const SubmitProblemModal: React.FC<SubmitProblemModalProps> = ({
                   </div>
                 </div>
               )}
-
-              <label className="flex items-start gap-3 cursor-pointer text-sm text-neutral-700 py-1">
-                <input
-                  type="checkbox"
-                  checked={isAnonymous}
-                  onChange={(e) => setIsAnonymous(e.target.checked)}
-                  className="rounded text-emerald-600 focus:ring-emerald-500 h-5 w-5 mt-0.5 shrink-0"
-                />
-                <span>{strings.formAnonymous}</span>
-              </label>
             </div>
 
             {/* Actions */}
